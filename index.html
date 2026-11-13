@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SID Calculation</title>
+<meta name="theme-color" content="#1b5e8a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SID Calc">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#eeede9;--s:#fff;--ink:#1c2226;--mut:#5a656c;--ln:#cfd3d4;--ac:#1b5e8a;--soft:#dbe9f3;--bad:#b3261e;--inb:#fff6cc;--inl:#d4b13a;--ini:#14325f;color-scheme:light dark}
+@media(prefers-color-scheme:dark){:root{--bg:#13171a;--s:#1d2327;--ink:#e6ebee;--mut:#98a4ab;--ln:#333d43;--ac:#6bb7ea;--soft:#22384a;--bad:#f08a80;--inb:#3a3320;--inl:#8a7a2f;--ini:#ffe9a0}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 Bahnschrift,"Segoe UI",system-ui,sans-serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+main{max-width:680px;margin:0 auto;padding:14px 14px 40px}
+h1{font-size:1.3rem;margin:4px 0}h2{font-size:1rem;margin:0 0 8px}
+.mut{color:var(--mut);font-size:.85rem}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.tabs{display:flex;border-bottom:2px solid var(--ln);margin-bottom:12px}
+.tabs button{flex:1;padding:10px 4px;background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;font:inherit;font-weight:600;color:var(--mut)}
+.tabs button[aria-selected=true]{color:var(--ac);border-bottom-color:var(--ac)}
+.card{background:var(--s);border:1px solid var(--ln);border-radius:6px;padding:12px;margin-bottom:12px}
+.row{display:grid;grid-template-columns:1fr 150px;gap:8px;align-items:center;padding:5px 0}
+input,select{width:100%;padding:8px;font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--ln);border-radius:4px}
+button.b{padding:10px 14px;font:inherit;font-weight:600;background:var(--ac);color:#fff;border:0;border-radius:4px;width:100%}
+button.s{padding:6px 10px;font:inherit;font-size:.85rem;background:var(--soft);color:var(--ink);border:1px solid var(--ln);border-radius:4px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--ac);outline-offset:1px}
+.err{color:var(--bad);min-height:1.3em;margin:8px 0}
+.xr{background:var(--s);border:1px solid var(--ln);border-radius:6px;padding:8px 10px;margin-bottom:8px}
+.xr b{display:block;font-weight:600;font-size:.9rem;margin-bottom:6px}
+.xc{display:flex;flex-wrap:wrap;gap:8px}.xf{flex:1 1 110px;min-width:90px}
+.xf small{display:block;color:var(--mut);font-size:.7rem;min-height:.9rem}
+.xo{font-weight:700;color:var(--ac);padding:8px;background:var(--soft);border-radius:4px;font-variant-numeric:tabular-nums}
+#xrows input{background:var(--inb);border-color:var(--inl);color:var(--ini);font-weight:600;text-align:right}
+.lg{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px;margin:0 4px 0 10px}
+.lg.in{background:var(--inb);border:1px solid var(--inl);margin-left:0}.lg.out{background:var(--soft);border:1px solid var(--ln)}
+.btns{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:12px}
+.btns .s{padding:10px}
+.u .f{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.tag{font-size:.75rem;background:var(--soft);padding:1px 6px;border-radius:3px}
+.off{color:var(--bad);font-weight:700}
+.out{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid var(--ln)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+
+<section id="login" hidden>
+<h1>SID Calculation</h1>
+<p class="mut">Sign in with the email and password given to you.</p>
+<form id="lform" class="card">
+<div class="row"><label for="em">Email</label><input id="em" type="email" autocomplete="username" required></div>
+<div class="row"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required></div>
+<p class="err" id="lerr" role="alert"></p>
+<button class="b" type="submit">Sign in</button>
+</form>
+</section>
+
+<section id="app" hidden>
+<div class="top"><div><h1>SID Calculation</h1><div class="mut" id="who"></div></div><button class="s" id="out">Sign out</button></div>
+<div class="tabs" role="tablist">
+<button role="tab" data-t="p1" aria-selected="true">Calculators</button>
+<button role="tab" data-t="p3" aria-selected="false" id="tabA" hidden>Admin</button>
+</div>
+<p class="err" id="aerr" role="alert"></p>
+
+<div id="p1">
+<div class="card"><h2>Calculator</h2>
+<div class="row"><label for="xs">Sheet</label><select id="xs"></select></div></div>
+<div id="xbox" hidden>
+<p class="mut" style="margin:0 0 8px"><span class="lg in"></span>You can change <span class="lg out"></span>Result</p>
+<div class="btns"><button class="b" id="xc">Calculate</button><button class="s" id="xr">Reset</button></div>
+<div id="xrows"></div>
+</div>
+</div>
+
+<div id="p3" hidden>
+<p class="mut">To add a customer: Supabase, Authentication, Users, Add user (tick Auto Confirm). They appear here automatically.</p>
+<div id="ulist"></div>
+<div class="card"><h2>Recent activity</h2><div id="logs"></div></div>
+</div>
+</section>
+</main>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+const CFG=window.SID_CONFIG||{};
+const SB=supabase.createClient(CFG.url||"https://example.invalid",CFG.key||"missing");
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const n=(v,d)=>Number(v).toLocaleString("en-IN",{minimumFractionDigits:d,maximumFractionDigits:d});
+const DEV=(()=>{try{let d=localStorage.getItem("sid_dev");if(!d){d=crypto.randomUUID?crypto.randomUUID():Date.now()+Math.random().toString(36).slice(2);localStorage.setItem("sid_dev",d)}return d}catch(e){return "nodev"}})();
+const MSG={BLOCKED:"Your account is blocked. Please contact your provider.",EXPIRED:"Your access has expired. Please contact your provider.",OTHER_DEVICE:"This account is linked to another device. Ask your provider to reset it.",NO_PROFILE:"Account not found. Please contact your provider.",NO_SHEET:"This calculator is not available."};
+const err=e=>{const m=(e&&e.message)||"";for(const k in MSG)if(m.includes(k))return MSG[k];return m||"Something went wrong."};
+const show=w=>{$("login").hidden=w!=="login";$("app").hidden=w!=="app"};
+
+async function start(){
+ if(!CFG.url){show("login");$("lerr").textContent="App is not configured yet (config.js missing).";return}
+ const {data:{session}}=await SB.auth.getSession();
+ if(!session){show("login");return}
+ const {data,error}=await SB.rpc("session_check",{p_device:DEV});
+ if(error){await SB.auth.signOut();show("login");$("lerr").textContent=err(error);return}
+ $("who").textContent=(data.company||data.email||"")+(data.valid_till?" · valid till "+data.valid_till:"");
+ $("tabA").hidden=!data.is_admin;document.querySelector(".tabs").hidden=!data.is_admin;
+ show("app");loadCat();
+}
+$("lform").onsubmit=async e=>{e.preventDefault();$("lerr").textContent="";
+ const {error}=await SB.auth.signInWithPassword({email:$("em").value.trim(),password:$("pw").value});
+ if(error){$("lerr").textContent=/Invalid login/i.test(error.message)?"Wrong email or password.":(error.message||"Could not sign in.");return}
+ $("pw").value="";start()};
+$("out").onclick=async()=>{await SB.auth.signOut();show("login")};
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+ document.querySelectorAll(".tabs button").forEach(x=>{const on=x===b;x.setAttribute("aria-selected",on);$(x.dataset.t).hidden=!on});
+ if(b.dataset.t==="p3")loadAdmin()});
+
+/* Calculators */
+let CAT=null,ROWS=null;
+async function loadCat(){
+ if(CAT)return;
+ const {data,error}=await SB.rpc("xl_catalog");
+ if(error){$("aerr").textContent=err(error);return}
+ CAT=data;const mods=[...new Set(CAT.map(r=>r.module))];
+ $("xs").innerHTML='<option value="">Select a calculator</option>'+mods.map(m=>`<optgroup label="${esc(m.replace(/^\d+\s*/,""))}">`+CAT.filter(r=>r.module===m).map(r=>`<option value="${esc(r.name)}">${esc(r.name.trim())}</option>`).join("")+"</optgroup>").join("")}
+function draw(){
+ const rows={};ROWS.forEach(l=>{(rows[l.rno]=rows[l.rno]||[]).push(l)});
+ $("xrows").innerHTML=Object.keys(rows).map(Number).sort((a,b)=>a-b).map(r=>{const c=rows[r];
+  return `<div class="xr"><b>${esc(c[0].label)}</b><div class="xc">`+c.map(l=>l.role==="in"?
+   `<div class="xf"><small title="${esc(l.cell)}">${esc(l.cap||"")}</small><input data-k="${esc(l.key)}" type="number" step="any" inputmode="decimal" value="${l.def==null?"":l.def}"></div>`:
+   `<div class="xf"><small title="${esc(l.cell)}">${esc(l.cap||"")}</small><div class="xo" data-o="${esc(l.key)}">–</div></div>`).join("")+"</div></div>"}).join("")}
+$("xs").onchange=async()=>{
+ const sh=$("xs").value;$("xbox").hidden=!sh;$("aerr").textContent="";if(!sh)return;
+ let all=[],from=0;
+ for(;;){
+  const {data,error}=await SB.from("xl_layout").select("key,cell,role,label,cap,rno,cno,def").eq("sheet",sh).order("rno").order("cno").range(from,from+999);
+  if(error){$("aerr").textContent=err(error);return}
+  all=all.concat(data);if(data.length<1000)break;from+=1000}
+ ROWS=all;draw()};
+$("xr").onclick=()=>{if(ROWS)draw()};
+$("xc").onclick=async()=>{
+ $("aerr").textContent="";
+ const vals={};document.querySelectorAll("#xrows input").forEach(i=>{if(i.value!=="")vals[i.dataset.k]=parseFloat(i.value)});
+ const {data,error}=await SB.rpc("run_sheet",{p_device:DEV,p_sheet:$("xs").value,p_vals:vals});
+ if(error){
+  if(/BLOCKED|EXPIRED|OTHER_DEVICE|NO_PROFILE/.test(error.message)){await SB.auth.signOut();show("login");$("lerr").textContent=err(error)}
+  else $("aerr").textContent=err(error);
+  return}
+ document.querySelectorAll("#xrows [data-o]").forEach(o=>{const x=data[o.dataset.o];o.textContent=x==null?"–":n(x,Math.abs(x)>=100?1:Math.abs(x)>=1?2:4)})};
+
+/* Admin */
+const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+function addm(s,m){const t=ymd(new Date());const d=new Date((s&&s>t?s:t)+"T12:00:00");d.setMonth(d.getMonth()+m);return ymd(d)}
+async function loadAdmin(){
+ const [a,b]=await Promise.all([SB.from("profiles").select("*").order("created_at"),SB.from("usage_logs").select("*").order("created_at",{ascending:false}).limit(300)]);
+ if(a.error||b.error){$("aerr").textContent=err(a.error||b.error);return}
+ const P=a.data,L=b.data,em={},st={};
+ P.forEach(p=>em[p.id]=p.email);
+ L.forEach(l=>{const s=st[l.user_id]=st[l.user_id]||{c:0,last:l.created_at};if(l.event==="calc")s.c++});
+ $("ulist").innerHTML=P.map(p=>{const s=st[p.id]||{c:0,last:null};return `<div class="card u" data-id="${p.id}" data-active="${p.is_active}">
+ <b>${esc(p.email)}</b> ${p.is_admin?'<span class="tag">admin</span>':""} <span class="${p.is_active?"mut":"off"}" data-st>${p.is_active?"Active":"Blocked"}</span>
+ <div class="f"><input data-co placeholder="Company" value="${esc(p.company)}"></div>
+ <div class="f"><input data-vt type="date" value="${p.valid_till||""}" aria-label="Valid till"><button class="s" data-a="m1">+1 month</button><button class="s" data-a="y1">+1 year</button></div>
+ <div class="f"><button class="s" data-a="tog">Block / Unblock</button><button class="s" data-a="dev">Reset device</button><span class="mut">${p.device_id?"Device linked":"No device"}</span></div>
+ <div class="mut" style="margin-top:6px">${s.c} calculations (recent)${s.last?" · last seen "+new Date(s.last).toLocaleString():""}</div>
+ <div class="f"><button class="b" data-a="save">Save</button></div></div>`}).join("");
+ $("logs").innerHTML=L.slice(0,40).map(l=>`<div class="out"><span>${esc(em[l.user_id]||"?")}<br><span class="mut">${esc(l.event)}${l.detail?" · "+esc(l.detail.trim()):""}</span></span><span class="mut">${new Date(l.created_at).toLocaleString()}</span></div>`).join("")||'<span class="mut">No activity yet.</span>'}
+$("ulist").onclick=async e=>{
+ const bt=e.target.closest("button[data-a]");if(!bt)return;
+ const c=bt.closest(".u"),id=c.dataset.id,a=bt.dataset.a,vt=c.querySelector("[data-vt]");
+ if(a==="m1")vt.value=addm(vt.value,1);
+ else if(a==="y1")vt.value=addm(vt.value,12);
+ else if(a==="tog"){const on=c.dataset.active!=="true";c.dataset.active=on;const s=c.querySelector("[data-st]");s.textContent=on?"Active":"Blocked";s.className=on?"mut":"off"}
+ else if(a==="dev"){const {error}=await SB.from("profiles").update({device_id:null}).eq("id",id);$("aerr").textContent=error?err(error):"";loadAdmin()}
+ else if(a==="save"){const {error}=await SB.from("profiles").update({company:c.querySelector("[data-co]").value.trim()||null,valid_till:vt.value||null,is_active:c.dataset.active==="true"}).eq("id",id);$("aerr").textContent=error?err(error):"";if(!error)bt.textContent="Saved"}};
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(function(){});
+start();
+</script>
+</body>
+</html>
