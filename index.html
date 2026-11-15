@@ -83,6 +83,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <div id="xbox" hidden>
 <p class="mut" style="margin:0 0 8px"><span class="lg in"></span>You can change <span class="lg out"></span>Result</p>
 <div class="btns"><button class="b" id="xc">Calculate</button><button class="s" id="xr">Reset</button></div>
+<button class="s" id="xall" style="width:100%;margin:0 0 12px" hidden>Compare all my kilns on this sheet</button>
+<div id="xout"></div>
 <div id="savebox" class="card" hidden>
 <div class="row"><label for="stitle">Title</label><input id="stitle"></div>
 <div class="row"><label for="snote">Note (optional)</label><input id="snote"></div>
@@ -104,7 +106,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <div class="card"><h2>Saved calculations</h2>
 <div class="row"><label for="hf">Calculator</label><select id="hf"></select></div>
 <div class="row"><label for="hq">Search</label><input id="hq" placeholder="title or note"></div>
-<button class="s" id="hcmp" style="margin-top:6px">Compare the 2 ticked</button></div>
+<div class="f2"><button class="s" id="hcmp">Compare ticked</button><button class="s" id="hkil">Latest of each kiln</button></div>
+<label class="mut" style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="honly" style="width:auto"> Show only rows that differ</label></div>
 <div id="hout"></div><div id="hlist"></div>
 </div>
 
@@ -156,14 +159,14 @@ async function loadCat(){
  if(error){$("aerr").textContent=err(error);return}
  CAT=data;const mods=[...new Set(CAT.map(r=>r.module))];
  $("xs").innerHTML='<option value="">Select a calculator</option>'+mods.map(m=>`<optgroup label="${esc(m.replace(/^\d+\s*/,""))}">`+CAT.filter(r=>r.module===m).map(r=>`<option value="${esc(r.name)}">${esc(r.name.trim())}</option>`).join("")+"</optgroup>").join("")}
-function draw(){
+function draw0(){
  const rows={};ROWS.forEach(l=>{(rows[l.rno]=rows[l.rno]||[]).push(l)});
  $("xrows").innerHTML=Object.keys(rows).map(Number).sort((a,b)=>a-b).map(r=>{const c=rows[r];
   return `<div class="xr"><b>${esc(c[0].label)}</b><div class="xc">`+c.map(l=>l.role==="in"?
    inCell(l):
    `<div class="xf"><small title="${esc(l.cell)}">${esc(l.cap||"")}</small><div class="xo" data-o="${esc(l.key)}">–</div></div>`).join("")+"</div></div>"}).join("")}
 $("xs").onchange=async()=>{
- const sh=$("xs").value;$("xbox").hidden=!sh;$("savebox").hidden=true;$("aerr").textContent="";if(!sh)return;
+ $("xout").innerHTML="";const sh=$("xs").value;$("xbox").hidden=!sh;$("savebox").hidden=true;$("aerr").textContent="";if(!sh)return;
  let all=[],from=0;
  for(;;){
   const {data,error}=await SB.from("xl_layout").select("key,cell,role,label,cap,rno,cno,def,pkey,pscale").eq("sheet",sh).order("rno").order("cno").range(from,from+999);
@@ -249,7 +252,7 @@ function drawSaved(){
  <div class="mut">${esc(s.sheet.trim())}${s.kiln_name?" · "+esc(s.kiln_name):""} · ${new Date(s.created_at).toLocaleString()}</div>${s.note?`<div class="mut">${esc(s.note)}</div>`:""}
  <div class="f2"><button class="s" data-view="${esc(s.id)}">View</button><button class="s" data-open="${esc(s.id)}">Open</button><button class="s" data-del="${esc(s.id)}">Delete</button></div><div class="det" data-d="${esc(s.id)}" hidden></div></div>`).join("")||'<p class="mut">Nothing saved yet. Calculate something and save it from the Calculators tab.</p>'}
 $("hf").onchange=drawSaved;$("hq").oninput=drawSaved;
-$("hlist").onchange=e=>{const c=e.target.dataset.c;if(!c)return;SEL=e.target.checked?SEL.concat(c).slice(-2):SEL.filter(x=>x!==c);drawSaved()};
+$("hlist").onchange=e=>{const c=e.target.dataset.c;if(!c)return;SEL=e.target.checked?SEL.concat(c).slice(-6):SEL.filter(x=>x!==c);drawSaved()};
 $("hlist").onclick=async e=>{
  const b=e.target.closest("button");if(!b)return;
  const d=b.dataset;
@@ -262,14 +265,46 @@ $("hlist").onclick=async e=>{
   document.querySelectorAll("#xrows input").forEach(i=>{if(m[i.dataset.k]!=null){i.value=m[i.dataset.k];i.classList.remove("fp")}});
   $("xc").click()}
  else if(d.del&&confirm("Delete this saved calculation?")){const {error}=await SB.from("saved_calcs").delete().eq("id",d.del);if(error)$("aerr").textContent=err(error);else loadSaved()}};
+const colName=(s,all)=>{const base=s.kiln_name||s.title,dup=all.filter(x=>(x.kiln_name||x.title)===base).length>1;return base+(dup?" · "+new Date(s.created_at).toLocaleDateString():"")};
+function cmpHTML(cols,rows,only){
+ const body=rows.map(r=>{const v=cols.map(c=>c.m[r.k]),nums=v.filter(x=>typeof x==="number");
+  const diff=nums.length>1&&Math.max(...nums)-Math.min(...nums)>1e-9;
+  if(only&&!diff)return"";
+  const last=cols.length===2?(typeof v[0]==="number"&&typeof v[1]==="number"?v[1]-v[0]:null):(nums.length>1?Math.max(...nums)-Math.min(...nums):null);
+  return `<tr class="${diff?"chg":""}"><td>${esc(r.l)}${r.c?" · "+esc(r.c):""}${r.r==="in"?" (input)":""}</td>${v.map(x=>`<td>${fmt(x)}</td>`).join("")}<td>${last==null?"–":(cols.length===2&&last>0?"+":"")+fmt(last)}</td></tr>`}).join("");
+ return `<div style="overflow-x:auto"><table class="cmp"><tr><th>Item</th>${cols.map(c=>`<th>${esc(c.name)}</th>`).join("")}<th>${cols.length===2?"B − A":"Spread"}</th></tr>${body||'<tr><td colspan="9">No differences.</td></tr>'}</table></div>`}
 $("hcmp").onclick=()=>{
- if(SEL.length!==2){$("hout").innerHTML='<p class="mut">Tick two saved calculations of the same calculator, then press Compare.</p>';return}
- const [a,b]=SEL.map(id=>SAVED.find(s=>s.id===id));
- if(a.sheet!==b.sheet){$("hout").innerHTML='<p class="err">Please pick two calculations from the same calculator.</p>';return}
- const mb={};b.snap.forEach(x=>mb[x.k]=x);
- const rows=a.snap.map(x=>{const y=mb[x.k],d=(y&&typeof x.v==="number"&&typeof y.v==="number")?y.v-x.v:null;
-  return `<tr class="${d!=null&&Math.abs(d)>1e-9?"chg":""}"><td>${esc(x.l)}${x.c?" · "+esc(x.c):""}${x.r==="in"?" (input)":""}</td><td>${fmt(x.v)}</td><td>${y?fmt(y.v):"–"}</td><td>${d==null?"–":(d>0?"+":"")+fmt(d)}</td></tr>`}).join("");
- $("hout").innerHTML=`<div class="card"><h2>Compare</h2><div class="mut">A: ${esc(a.title)}<br>B: ${esc(b.title)}<br>Changed rows are highlighted.</div><div style="overflow-x:auto"><table class="cmp"><tr><th>Item</th><th>A</th><th>B</th><th>B − A</th></tr>${rows}</table></div></div>`};
+ const S=SEL.map(id=>SAVED.find(s=>s.id===id)).filter(Boolean);
+ if(S.length<2){$("hout").innerHTML='<p class="mut">Tick 2 to 6 saved calculations of the same calculator, then press Compare.</p>';return}
+ if(S.some(s=>s.sheet!==S[0].sheet)){$("hout").innerHTML='<p class="err">Please pick calculations from the same calculator.</p>';return}
+ const cols=S.map(s=>{const m={};s.snap.forEach(x=>m[x.k]=x.v);return{name:colName(s,S),m}});
+ const rows=S[0].snap.map(x=>({k:x.k,l:x.l,c:x.c,r:x.r}));
+ $("hout").innerHTML=`<div class="card"><h2>Compare</h2><div class="mut">${esc(S[0].sheet.trim())} · ${S.length} calculations. Changed rows are highlighted.</div>${cmpHTML(cols,rows,$("honly").checked)}</div>`};
+$("honly").onchange=()=>{if(SEL.length>1)$("hcmp").onclick()};
+$("hkil").onclick=()=>{
+ const f=$("hf").value;
+ if(!f){$("hout").innerHTML='<p class="mut">First choose one calculator in the Calculator menu above.</p>';return}
+ const seen=new Set(),pick=[];
+ SAVED.filter(x=>x.sheet===f&&x.kiln_name).forEach(x=>{if(!seen.has(x.kiln_name)&&pick.length<6){seen.add(x.kiln_name);pick.push(x.id)}});
+ if(pick.length<2){$("hout").innerHTML='<p class="mut">Save this calculator for at least 2 different kilns first.</p>';return}
+ SEL=pick;drawSaved();$("hcmp").onclick()};
+function draw(){draw0();$("xout").innerHTML="";$("xall").hidden=PROFS.length<2}
+$("xall").onclick=async()=>{
+ $("aerr").textContent="";
+ const cur={};document.querySelectorAll("#xrows input").forEach(i=>{if(i.value!=="")cur[i.dataset.k]=parseFloat(i.value)});
+ const ins=ROWS.filter(l=>l.role==="in"),res=[];
+ for(const p of PROFS.slice(0,6)){
+  const vals={};
+  ins.forEach(l=>{const raw=l.pkey?p.vals[l.pkey]:null;
+   if(raw!=null&&raw!=="")vals[l.key]=+(raw*(l.pscale||1)).toPrecision(10);
+   else if(l.pkey){if(l.def!=null)vals[l.key]=l.def}
+   else if(cur[l.key]!=null)vals[l.key]=cur[l.key];else if(l.def!=null)vals[l.key]=l.def});
+  const {data,error}=await SB.rpc("run_sheet",{p_device:DEV,p_sheet:$("xs").value,p_vals:vals});
+  if(error){$("aerr").textContent=err(error);return}
+  res.push({p,vals,data})}
+ const cols=res.map(r=>({name:r.p.name,m:Object.assign({},r.vals,r.data)}));
+ const rows=ROWS.filter(l=>l.role==="out"||cols.some(c=>c.m[l.key]!==cols[0].m[l.key])).map(l=>({k:l.key,l:l.label,c:l.cap,r:l.role}));
+ $("xout").innerHTML=`<div class="card"><h2>All my kilns</h2><div class="mut">${esc($("xs").value.trim())}. Other inputs are as shown below. Rows that differ are highlighted.</div>${cmpHTML(cols,rows,false)}</div>`};
 
 /* Admin */
 const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
