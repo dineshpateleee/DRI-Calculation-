@@ -23,6 +23,9 @@ h1{font-size:1.3rem;margin:4px 0}h2{font-size:1rem;margin:0 0 8px}
 .tabs{display:flex;border-bottom:2px solid var(--ln);margin-bottom:12px}
 .tabs button{flex:1;padding:10px 4px;background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;font:inherit;font-weight:600;color:var(--mut)}
 .tabs button[aria-selected=true]{color:var(--ac);border-bottom-color:var(--ac)}
+.tabs button{font-size:.82rem}
+.cmp{width:100%;border-collapse:collapse}.cmp td,.cmp th{padding:4px 6px;border-top:1px solid var(--ln);text-align:right;font-size:.85rem}.cmp th{color:var(--mut);font-weight:600}.cmp td:first-child,.cmp th:first-child{text-align:left}.cmp tr.chg td{background:var(--inb)}
+.det{margin-top:8px;font-size:.85rem}.det div{display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--ln);padding:3px 0}
 .card{background:var(--s);border:1px solid var(--ln);border-radius:6px;padding:12px;margin-bottom:12px}
 .row{display:grid;grid-template-columns:1fr 150px;gap:8px;align-items:center;padding:5px 0}
 input,select{width:100%;padding:8px;font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--ln);border-radius:4px}
@@ -68,6 +71,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <div class="tabs" role="tablist">
 <button role="tab" data-t="p1" aria-selected="true">Calculators</button>
 <button role="tab" data-t="p2" aria-selected="false">My kilns</button>
+<button role="tab" data-t="p4" aria-selected="false">History</button>
 <button role="tab" data-t="p3" aria-selected="false" id="tabA" hidden>Admin</button>
 </div>
 <p class="err" id="aerr" role="alert"></p>
@@ -79,6 +83,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <div id="xbox" hidden>
 <p class="mut" style="margin:0 0 8px"><span class="lg in"></span>You can change <span class="lg out"></span>Result</p>
 <div class="btns"><button class="b" id="xc">Calculate</button><button class="s" id="xr">Reset</button></div>
+<div id="savebox" class="card" hidden>
+<div class="row"><label for="stitle">Title</label><input id="stitle"></div>
+<div class="row"><label for="snote">Note (optional)</label><input id="snote"></div>
+<button class="b" id="ssave">Save this calculation</button></div>
 <div id="xrows"></div>
 </div>
 </div>
@@ -90,6 +98,14 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <div id="kfields"></div>
 <div class="btns"><button class="b" id="ksave">Save</button><button class="s" id="kcancel">Cancel</button></div></div>
 <div id="klist"></div>
+</div>
+
+<div id="p4" hidden>
+<div class="card"><h2>Saved calculations</h2>
+<div class="row"><label for="hf">Calculator</label><select id="hf"></select></div>
+<div class="row"><label for="hq">Search</label><input id="hq" placeholder="title or note"></div>
+<button class="s" id="hcmp" style="margin-top:6px">Compare the 2 ticked</button></div>
+<div id="hout"></div><div id="hlist"></div>
 </div>
 
 <div id="p3" hidden>
@@ -130,7 +146,7 @@ $("lform").onsubmit=async e=>{e.preventDefault();$("lerr").textContent="";
 $("out").onclick=async()=>{await SB.auth.signOut();show("login")};
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
  document.querySelectorAll(".tabs button").forEach(x=>{const on=x===b;x.setAttribute("aria-selected",on);$(x.dataset.t).hidden=!on});
- if(b.dataset.t==="p3")loadAdmin()});
+ if(b.dataset.t==="p3")loadAdmin();if(b.dataset.t==="p4")loadSaved()});
 
 /* Calculators */
 let CAT=null,ROWS=null;
@@ -147,7 +163,7 @@ function draw(){
    inCell(l):
    `<div class="xf"><small title="${esc(l.cell)}">${esc(l.cap||"")}</small><div class="xo" data-o="${esc(l.key)}">–</div></div>`).join("")+"</div></div>"}).join("")}
 $("xs").onchange=async()=>{
- const sh=$("xs").value;$("xbox").hidden=!sh;$("aerr").textContent="";if(!sh)return;
+ const sh=$("xs").value;$("xbox").hidden=!sh;$("savebox").hidden=true;$("aerr").textContent="";if(!sh)return;
  let all=[],from=0;
  for(;;){
   const {data,error}=await SB.from("xl_layout").select("key,cell,role,label,cap,rno,cno,def,pkey,pscale").eq("sheet",sh).order("rno").order("cno").range(from,from+999);
@@ -163,7 +179,9 @@ $("xc").onclick=async()=>{
   if(/BLOCKED|EXPIRED|OTHER_DEVICE|NO_PROFILE/.test(error.message)){await SB.auth.signOut();show("login");$("lerr").textContent=err(error)}
   else $("aerr").textContent=err(error);
   return}
- document.querySelectorAll("#xrows [data-o]").forEach(o=>{const x=data[o.dataset.o];o.textContent=x==null?"–":n(x,Math.abs(x)>=100?1:Math.abs(x)>=1?2:4)})};
+ LD=data;
+ document.querySelectorAll("#xrows [data-o]").forEach(o=>{const x=data[o.dataset.o];o.textContent=x==null?"–":n(x,Math.abs(x)>=100?1:Math.abs(x)>=1?2:4)});
+ $("savebox").hidden=false;$("stitle").value=$("xs").value.trim()+" · "+new Date().toLocaleDateString();$("ssave").textContent="Save this calculation"};
 
 /* Kiln profiles */
 const PFG=[["Kiln",[["kiln_length","Kiln length","m"],["kiln_dia","Kiln effective diameter","m"],["kiln_incl","Kiln inclination","%"],["kiln_rpm","Kiln RPM","rpm"],["capacity_tpd","Kiln capacity","TPD"],["outlet_cone_dia","Outlet cone diameter","m"]]],
@@ -203,6 +221,55 @@ $("klist").onclick=async e=>{
  const b=e.target.closest("button");if(!b)return;
  if(b.dataset.e)openForm(PROFS.find(p=>p.id===b.dataset.e));
  else if(b.dataset.d&&confirm("Delete this kiln?")){const {error}=await SB.from("kiln_profiles").delete().eq("id",b.dataset.d);if(error)$("aerr").textContent=err(error);else loadProfs()}};
+
+/* Saved calculations */
+let LD=null,SAVED=[],SEL=[];
+const fmt=v=>v==null||v===""?"–":(typeof v!=="number"?esc(v):n(v,Math.abs(v)>=100?1:Math.abs(v)>=1?2:4));
+$("ssave").onclick=async()=>{
+ const snap=[];
+ document.querySelectorAll("#xrows .xr").forEach(r=>{const lab=r.querySelector("b").textContent;
+  r.querySelectorAll(".xf").forEach(f=>{const cap=f.querySelector("small").textContent.replace(/ ?·? ?from kiln$/,""),i=f.querySelector("input");
+   if(i){if(i.value!=="")snap.push({l:lab,c:cap,r:"in",k:i.dataset.k,v:parseFloat(i.value)})}
+   else{const o=f.querySelector("[data-o]"),x=LD?LD[o.dataset.o]:null;snap.push({l:lab,c:cap,r:"out",k:o.dataset.o,v:x==null?null:x})}})});
+ const p=curProf();
+ const {error}=await SB.from("saved_calcs").insert({sheet:$("xs").value,title:$("stitle").value.trim()||"Saved calculation",kiln_name:p?p.name:null,note:$("snote").value.trim()||null,snap});
+ if(error){$("aerr").textContent=err(error);return}
+ $("ssave").textContent="Saved ✓";$("snote").value="";loadSaved()};
+async function loadSaved(){
+ const {data,error}=await SB.from("saved_calcs").select("*").order("created_at",{ascending:false}).limit(300);
+ if(error){$("aerr").textContent=err(error);return}
+ SAVED=data;SEL=SEL.filter(id=>SAVED.some(s=>s.id===id));
+ const sheets=[...new Set(SAVED.map(s=>s.sheet))],cur=$("hf").value;
+ $("hf").innerHTML='<option value="">All calculators</option>'+sheets.map(s=>`<option value="${esc(s)}">${esc(s.trim())}</option>`).join("");
+ $("hf").value=sheets.includes(cur)?cur:"";drawSaved()}
+function drawSaved(){
+ const f=$("hf").value,q=$("hq").value.trim().toLowerCase();
+ const L=SAVED.filter(s=>(!f||s.sheet===f)&&(!q||((s.title||"")+" "+(s.note||"")).toLowerCase().includes(q)));
+ $("hlist").innerHTML=L.map(s=>`<div class="card"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-c="${esc(s.id)}" ${SEL.includes(s.id)?"checked":""} style="width:auto"><b>${esc(s.title)}</b></label>
+ <div class="mut">${esc(s.sheet.trim())}${s.kiln_name?" · "+esc(s.kiln_name):""} · ${new Date(s.created_at).toLocaleString()}</div>${s.note?`<div class="mut">${esc(s.note)}</div>`:""}
+ <div class="f2"><button class="s" data-view="${esc(s.id)}">View</button><button class="s" data-open="${esc(s.id)}">Open</button><button class="s" data-del="${esc(s.id)}">Delete</button></div><div class="det" data-d="${esc(s.id)}" hidden></div></div>`).join("")||'<p class="mut">Nothing saved yet. Calculate something and save it from the Calculators tab.</p>'}
+$("hf").onchange=drawSaved;$("hq").oninput=drawSaved;
+$("hlist").onchange=e=>{const c=e.target.dataset.c;if(!c)return;SEL=e.target.checked?SEL.concat(c).slice(-2):SEL.filter(x=>x!==c);drawSaved()};
+$("hlist").onclick=async e=>{
+ const b=e.target.closest("button");if(!b)return;
+ const d=b.dataset;
+ if(d.view){const s=SAVED.find(x=>x.id===d.view),box=document.querySelector(`.det[data-d="${CSS.escape(d.view)}"]`);
+  box.hidden=!box.hidden;box.innerHTML=s.snap.map(x=>`<div><span>${esc(x.l)}${x.c?" · "+esc(x.c):""}</span><b style="color:var(--${x.r==="in"?"ini":"ac"})">${fmt(x.v)}</b></div>`).join("")}
+ else if(d.open){const s=SAVED.find(x=>x.id===d.open);
+  document.querySelector('.tabs button[data-t="p1"]').click();
+  $("xs").value=s.sheet;await $("xs").onchange();
+  const m={};s.snap.forEach(x=>{if(x.r==="in")m[x.k]=x.v});
+  document.querySelectorAll("#xrows input").forEach(i=>{if(m[i.dataset.k]!=null){i.value=m[i.dataset.k];i.classList.remove("fp")}});
+  $("xc").click()}
+ else if(d.del&&confirm("Delete this saved calculation?")){const {error}=await SB.from("saved_calcs").delete().eq("id",d.del);if(error)$("aerr").textContent=err(error);else loadSaved()}};
+$("hcmp").onclick=()=>{
+ if(SEL.length!==2){$("hout").innerHTML='<p class="mut">Tick two saved calculations of the same calculator, then press Compare.</p>';return}
+ const [a,b]=SEL.map(id=>SAVED.find(s=>s.id===id));
+ if(a.sheet!==b.sheet){$("hout").innerHTML='<p class="err">Please pick two calculations from the same calculator.</p>';return}
+ const mb={};b.snap.forEach(x=>mb[x.k]=x);
+ const rows=a.snap.map(x=>{const y=mb[x.k],d=(y&&typeof x.v==="number"&&typeof y.v==="number")?y.v-x.v:null;
+  return `<tr class="${d!=null&&Math.abs(d)>1e-9?"chg":""}"><td>${esc(x.l)}${x.c?" · "+esc(x.c):""}${x.r==="in"?" (input)":""}</td><td>${fmt(x.v)}</td><td>${y?fmt(y.v):"–"}</td><td>${d==null?"–":(d>0?"+":"")+fmt(d)}</td></tr>`}).join("");
+ $("hout").innerHTML=`<div class="card"><h2>Compare</h2><div class="mut">A: ${esc(a.title)}<br>B: ${esc(b.title)}<br>Changed rows are highlighted.</div><div style="overflow-x:auto"><table class="cmp"><tr><th>Item</th><th>A</th><th>B</th><th>B − A</th></tr>${rows}</table></div></div>`};
 
 /* Admin */
 const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
