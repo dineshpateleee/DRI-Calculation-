@@ -81,12 +81,22 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <div id="p1">
 <div class="card"><h2>Calculator</h2>
 <div class="row"><label for="kp">Kiln</label><select id="kp"></select></div>
-<div class="row"><label for="xs">Sheet</label><select id="xs"></select></div></div>
+<div class="row"><label for="xs">Sheet</label><select id="xs"></select></div>
+<button class="s" id="xed" hidden style="width:100%;margin-top:6px">Edit mode</button></div>
 <div id="xbox" hidden>
 <p class="mut" style="margin:0 0 8px"><span class="lg in"></span>You can change <span class="lg out"></span>Result</p>
 <div class="btns"><button class="b" id="xc">Calculate</button><button class="s" id="xr">Reset</button></div>
 <button class="s" id="xall" style="width:100%;margin:0 0 12px" hidden>Compare all my kilns on this sheet</button>
 <div id="xout"></div>
+<div id="edbox" class="card" hidden>
+<h2>Edit this box</h2><div class="mut" id="edinfo"></div>
+<div class="row"><label for="edl">Line name</label><input id="edl" type="text"></div>
+<div class="row"><label for="edc">Box name</label><input id="edc" type="text"></div>
+<div class="row" id="eddr"><label for="edd">Default value</label><input id="edd" type="number" step="any" inputmode="decimal"></div>
+<div class="row" id="edtr"><label for="edt">Type</label><select id="edt"><option value="in">Input (can be changed)</option><option value="out">Result (locked)</option></select></div>
+<div class="row"><label for="edv">Show this box</label><select id="edv"><option value="1">Yes</option><option value="0">No (hidden)</option></select></div>
+<div class="row"><label for="edw">Whole line</label><select id="edw"><option value="">No change</option><option value="1">Show line</option><option value="0">Hide line</option></select></div>
+<div class="btns"><button class="b" id="edsave">Save changes</button><button class="s" id="edclose">Close</button></div></div>
 <div id="savebox" class="card" hidden>
 <div class="row"><label for="stitle">Title</label><input id="stitle"></div>
 <div class="row"><label for="snote">Note (optional)</label><input id="snote"></div>
@@ -116,6 +126,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 
 <div id="p3" hidden>
 <p class="mut">To add a customer: Supabase, Authentication, Users, Add user (tick Auto Confirm). They appear here automatically.</p>
+<div class="card"><h2>Layout backup</h2><p class="mut">Downloads every calculator line (names, hidden boxes, defaults). Keep it safe. After an Excel update, send it so your edits can be merged.</p><button class="s" id="lbk">Download layout CSV</button></div>
 <div id="ulist"></div>
 <div class="card"><h2>Recent activity</h2><div id="logs"></div></div>
 </div>
@@ -142,7 +153,7 @@ async function start(){
  const {data,error}=await SB.rpc("session_check",{p_device:DEV});
  if(error){await SB.auth.signOut();show("login");$("lerr").textContent=err(error);return}
  ME=data;$("who").textContent=(data.company||data.email||"")+(data.valid_till?" · valid till "+data.valid_till:"");
- $("tabA").hidden=!data.is_admin;
+ $("tabA").hidden=!data.is_admin;$("xed").hidden=!data.is_admin;
  show("app");loadCat();loadProfs();
 }
 $("lform").onsubmit=async e=>{e.preventDefault();$("lerr").textContent="";
@@ -163,16 +174,16 @@ async function loadCat(){
  CAT=data;const mods=[...new Set(CAT.map(r=>r.module))];
  $("xs").innerHTML='<option value="">Select a calculator</option>'+mods.map(m=>`<optgroup label="${esc(m.replace(/^\d+\s*/,""))}">`+CAT.filter(r=>r.module===m).map(r=>`<option value="${esc(r.name)}">${esc(r.name.trim())}</option>`).join("")+"</optgroup>").join("")}
 function draw0(){
- const rows={};ROWS.forEach(l=>{(rows[l.rno]=rows[l.rno]||[]).push(l)});
+ const rows={};(EDIT?ROWS:VIS()).forEach(l=>{(rows[l.rno]=rows[l.rno]||[]).push(l)});
  $("xrows").innerHTML=Object.keys(rows).map(Number).sort((a,b)=>a-b).map(r=>{const c=rows[r];
-  return `<div class="xr"><b>${esc(c[0].label)}</b><div class="xc">`+c.map(l=>l.role==="in"?
+  return `<div class="xr"><b>${esc(c[0].label)}</b><div class="xc">`+c.map(l=>EDIT?edTile(l):l.role==="in"?
    inCell(l):
    `<div class="xf"><small title="${esc(l.cell)}">${esc(l.cap||"")}</small><div class="xo" data-o="${esc(l.key)}">–</div></div>`).join("")+"</div></div>"}).join("")}
 $("xs").onchange=async()=>{
  $("xout").innerHTML="";const sh=$("xs").value;$("xbox").hidden=!sh;$("savebox").hidden=true;$("aerr").textContent="";if(!sh)return;
  let all=[],from=0;
  for(;;){
-  const {data,error}=await SB.from("xl_layout").select("key,cell,role,label,cap,rno,cno,def,pkey,pscale").eq("sheet",sh).order("rno").order("cno").range(from,from+999);
+  const {data,error}=await SB.from("xl_layout").select("key,cell,role,label,cap,rno,cno,def,pkey,pscale,visible").eq("sheet",sh).order("rno").order("cno").range(from,from+999);
   if(error){$("aerr").textContent=err(error);return}
   all=all.concat(data);if(data.length<1000)break;from+=1000}
  ROWS=all;draw()};
@@ -193,7 +204,7 @@ $("xc").onclick=async()=>{
 const PFG=[["Kiln",[["kiln_length","Kiln length","m"],["kiln_dia","Kiln effective diameter","m"],["kiln_incl","Kiln inclination","%"],["kiln_rpm","Kiln RPM","rpm"],["capacity_tpd","Kiln capacity","TPD"],["outlet_cone_dia","Outlet cone diameter","m"]]],
 ["Iron and coal data",[["iron_feed","Iron feed rate","TPH"],["iron_fet","Iron FeT","%"],["yield","Yield","%"],["iron_moisture","Iron moisture","%"],["mz","MZ (metallisation)","%"],["total_coal","Total coal feed","TPH"],["coal_fc","Coal FC","%"],["coal_moisture","Coal moisture","%"],["coal_density","Coal density","t/m³"],["non_mag_char","Non-mag char","%"]]]];
 const PF=PFG.flatMap(g=>g[1]);
-let PROFS=[],EDIT=null;
+let PROFS=[],KEDIT=null;
 const lsGet=k=>{try{return localStorage.getItem(k)||""}catch(e){return ""}},lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
 const curProf=()=>PROFS.find(p=>p.id===$("kp").value)||null;
 function inCell(l){
@@ -212,7 +223,7 @@ function drawKilns(){
  $("klist").innerHTML=PROFS.map(p=>{const t=PF.filter(f=>p.vals[f[0]]!=null&&p.vals[f[0]]!=="").map(f=>f[1]+": "+p.vals[f[0]]+" "+f[2]).join(" · ");
   return `<div class="card"><b>${esc(p.name)}</b><div class="mut">${esc(t)||"No values yet"}</div><div class="f2"><button class="s" data-e="${esc(p.id)}">Edit</button><button class="s" data-d="${esc(p.id)}">Delete</button></div></div>`}).join("")||'<p class="mut">No kiln saved yet.</p>'}
 function openForm(p){
- EDIT=p?p.id:null;$("kform").hidden=false;$("kname").value=p?p.name:"";
+ KEDIT=p?p.id:null;$("kform").hidden=false;$("kname").value=p?p.name:"";
  PF.forEach(f=>{$("kf_"+f[0]).value=p&&p.vals[f[0]]!=null?p.vals[f[0]]:""});$("kname").focus()}
 $("kadd").onclick=()=>openForm(null);
 $("kcancel").onclick=()=>{$("kform").hidden=true};
@@ -220,7 +231,7 @@ $("kp").onchange=()=>{lsSet("sid_kiln",$("kp").value);if(ROWS)draw()};
 $("ksave").onclick=async()=>{
  const name=$("kname").value.trim()||"My kiln",vals={};
  PF.forEach(f=>{const v=$("kf_"+f[0]).value;if(v!=="")vals[f[0]]=parseFloat(v)});
- const q=EDIT?SB.from("kiln_profiles").update({name,vals,updated_at:new Date().toISOString()}).eq("id",EDIT):SB.from("kiln_profiles").insert({name,vals});
+ const q=KEDIT?SB.from("kiln_profiles").update({name,vals,updated_at:new Date().toISOString()}).eq("id",KEDIT):SB.from("kiln_profiles").insert({name,vals});
  const {error}=await q;if(error){$("aerr").textContent=err(error);return}
  $("kform").hidden=true;loadProfs()};
 $("klist").onclick=async e=>{
@@ -296,7 +307,7 @@ function draw(){draw0();$("xout").innerHTML="";$("xall").hidden=PROFS.length<2}
 $("xall").onclick=async()=>{
  $("aerr").textContent="";
  const cur={};document.querySelectorAll("#xrows input").forEach(i=>{if(i.value!=="")cur[i.dataset.k]=parseFloat(i.value)});
- const ins=ROWS.filter(l=>l.role==="in"),res=[];
+ const ins=VIS().filter(l=>l.role==="in"),res=[];
  for(const p of PROFS.slice(0,6)){
   const vals={};
   ins.forEach(l=>{const raw=l.pkey?p.vals[l.pkey]:null;
@@ -307,7 +318,7 @@ $("xall").onclick=async()=>{
   if(error){$("aerr").textContent=err(error);return}
   res.push({p,vals,data})}
  const cols=res.map(r=>({name:r.p.name,m:Object.assign({},r.vals,r.data)}));
- const rows=ROWS.filter(l=>l.role==="out"||cols.some(c=>c.m[l.key]!==cols[0].m[l.key])).map(l=>({k:l.key,l:l.label,c:l.cap,r:l.role}));
+ const rows=VIS().filter(l=>l.role==="out"||cols.some(c=>c.m[l.key]!==cols[0].m[l.key])).map(l=>({k:l.key,l:l.label,c:l.cap,r:l.role}));
  $("xout").innerHTML=`<div class="card"><h2>All my kilns</h2><div class="mut">${esc($("xs").value.trim())}. Other inputs are as shown below. Rows that differ are highlighted.</div>${cmpHTML(cols,rows,false)}</div>`};
 
 /* Reports: PDF, Excel, Print */
@@ -366,6 +377,46 @@ function tools(id,title){
   d.innerHTML='<button class="s" data-r="pdf" style="flex:1">PDF</button><button class="s" data-r="xls" style="flex:1">Excel</button><button class="s" data-r="print" style="flex:1">Print</button>';
   d.onclick=e=>{const b=e.target.closest("button");if(b)exportTable(t,title(),b.dataset.r)};card.appendChild(d)}).observe($(id),{childList:true})}
 tools("hout",()=>"Comparison "+$("hf").value.trim());tools("xout",()=>"All my kilns "+$("xs").value.trim());
+
+/* Admin edit mode */
+let EDIT=false,EDKEY=null;
+const VIS=()=>ROWS.filter(l=>l.visible!==false);
+const edTile=l=>`<div class="xf" style="${l.visible===false?"opacity:.45":""}"><small title="${esc(l.cell)}">${esc(l.cap||"")}${l.visible===false?" · hidden":""}</small><div class="xo" data-ed="${esc(l.key)}" style="cursor:pointer">${l.role==="in"?"Input"+(l.def!=null?" · "+fmt(l.def):""):"Result"} ✎</div></div>`;
+async function reloadRows(){
+ const sh=$("xs").value;let all=[],from=0;
+ for(;;){
+  const {data,error}=await SB.from("xl_layout").select("key,cell,role,label,cap,rno,cno,def,pkey,pscale,visible").eq("sheet",sh).order("rno").order("cno").range(from,from+999);
+  if(error){$("aerr").textContent=err(error);return}
+  all=all.concat(data);if(data.length<1000)break;from+=1000}
+ ROWS=all;draw()}
+$("xed").onclick=()=>{EDIT=!EDIT;$("xed").textContent=EDIT?"Edit mode ON (tap to finish)":"Edit mode";$("edbox").hidden=true;$("savebox").hidden=true;$("xc").disabled=EDIT;if(ROWS)draw()};
+$("xrows").onclick=e=>{if(!EDIT)return;const t=e.target.closest("[data-ed]");if(t)openEd(t.dataset.ed)};
+function openEd(k){
+ const l=ROWS.find(x=>x.key===k);if(!l)return;EDKEY=k;
+ $("edbox").hidden=false;$("edinfo").textContent=l.cell+" · "+$("xs").value.trim();
+ $("edl").value=l.label||"";$("edc").value=l.cap||"";
+ const isc=l.def!=null;$("eddr").hidden=!isc||l.role!=="in";$("edtr").hidden=!isc;
+ $("edd").value=isc?l.def:"";$("edt").value=l.role;$("edv").value=l.visible===false?"0":"1";$("edw").value="";
+ $("edbox").scrollIntoView({behavior:"smooth",block:"start"})}
+$("edclose").onclick=()=>{$("edbox").hidden=true};
+$("edsave").onclick=async()=>{
+ const l=ROWS.find(x=>x.key===EDKEY);if(!l)return;$("aerr").textContent="";const sh=$("xs").value;
+ const cell={cap:$("edc").value.trim()||null,visible:$("edv").value==="1"};
+ if(l.def!=null){cell.role=$("edt").value;const d=$("edd").value;if(d!==""&&l.role==="in")cell.def=parseFloat(d)}
+ let r=await SB.from("xl_layout").update(cell).eq("key",l.key);
+ if(r.error){$("aerr").textContent=err(r.error);return}
+ const lab=$("edl").value.trim(),line={};
+ if(lab&&lab!==l.label)line.label=lab;
+ if($("edw").value!=="")line.visible=$("edw").value==="1";
+ if(Object.keys(line).length){r=await SB.from("xl_layout").update(line).eq("sheet",sh).eq("rno",l.rno);if(r.error){$("aerr").textContent=err(r.error);return}}
+ $("edbox").hidden=true;await reloadRows()};
+$("lbk").onclick=async()=>{
+ $("aerr").textContent="";let all=[],from=0;
+ for(;;){const {data,error}=await SB.from("xl_layout").select("key,sheet,cell,role,label,cap,rno,cno,def,visible,pkey,pscale").order("key").range(from,from+999);
+  if(error){$("aerr").textContent=err(error);return}all=all.concat(data);if(data.length<1000)break;from+=1000}
+ const cols=["key","sheet","cell","role","label","cap","rno","cno","def","visible","pkey","pscale"],q=v=>v==null?"":'"'+String(v).replace(/"/g,'""')+'"';
+ const csv=cols.join(",")+"\n"+all.map(r=>cols.map(c=>q(r[c])).join(",")).join("\n");
+ const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="xl_layout_backup_"+ymd(new Date())+".csv";document.body.appendChild(a);a.click();a.remove()};
 
 /* Admin */
 const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
