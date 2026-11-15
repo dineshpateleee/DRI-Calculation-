@@ -36,6 +36,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .xf small{display:block;color:var(--mut);font-size:.7rem;min-height:.9rem}
 .xo{font-weight:700;color:var(--ac);padding:8px;background:var(--soft);border-radius:4px;font-variant-numeric:tabular-nums}
 #xrows input{background:var(--inb);border-color:var(--inl);color:var(--ini);font-weight:600;text-align:right}
+#xrows input.fp{border-width:2px}
+.f2{display:flex;gap:8px;margin-top:8px}
 .lg{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px;margin:0 4px 0 10px}
 .lg.in{background:var(--inb);border:1px solid var(--inl);margin-left:0}.lg.out{background:var(--soft);border:1px solid var(--ln)}
 .btns{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:12px}
@@ -65,18 +67,29 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <div class="top"><div><h1>SID Calculation</h1><div class="mut" id="who"></div></div><button class="s" id="out">Sign out</button></div>
 <div class="tabs" role="tablist">
 <button role="tab" data-t="p1" aria-selected="true">Calculators</button>
+<button role="tab" data-t="p2" aria-selected="false">My kilns</button>
 <button role="tab" data-t="p3" aria-selected="false" id="tabA" hidden>Admin</button>
 </div>
 <p class="err" id="aerr" role="alert"></p>
 
 <div id="p1">
 <div class="card"><h2>Calculator</h2>
+<div class="row"><label for="kp">Kiln</label><select id="kp"></select></div>
 <div class="row"><label for="xs">Sheet</label><select id="xs"></select></div></div>
 <div id="xbox" hidden>
 <p class="mut" style="margin:0 0 8px"><span class="lg in"></span>You can change <span class="lg out"></span>Result</p>
 <div class="btns"><button class="b" id="xc">Calculate</button><button class="s" id="xr">Reset</button></div>
 <div id="xrows"></div>
 </div>
+</div>
+
+<div id="p2" hidden>
+<div class="card"><h2>My kilns</h2><p class="mut">Save your kiln details once. They fill in automatically in the calculators.</p><button class="b" id="kadd">Add kiln</button></div>
+<div id="kform" class="card" hidden><h2>Kiln details</h2>
+<div class="row"><label for="kname">Kiln name</label><input id="kname" placeholder="Kiln 1"></div>
+<div id="kfields"></div>
+<div class="btns"><button class="b" id="ksave">Save</button><button class="s" id="kcancel">Cancel</button></div></div>
+<div id="klist"></div>
 </div>
 
 <div id="p3" hidden>
@@ -107,8 +120,8 @@ async function start(){
  const {data,error}=await SB.rpc("session_check",{p_device:DEV});
  if(error){await SB.auth.signOut();show("login");$("lerr").textContent=err(error);return}
  $("who").textContent=(data.company||data.email||"")+(data.valid_till?" · valid till "+data.valid_till:"");
- $("tabA").hidden=!data.is_admin;document.querySelector(".tabs").hidden=!data.is_admin;
- show("app");loadCat();
+ $("tabA").hidden=!data.is_admin;
+ show("app");loadCat();loadProfs();
 }
 $("lform").onsubmit=async e=>{e.preventDefault();$("lerr").textContent="";
  const {error}=await SB.auth.signInWithPassword({email:$("em").value.trim(),password:$("pw").value});
@@ -131,13 +144,13 @@ function draw(){
  const rows={};ROWS.forEach(l=>{(rows[l.rno]=rows[l.rno]||[]).push(l)});
  $("xrows").innerHTML=Object.keys(rows).map(Number).sort((a,b)=>a-b).map(r=>{const c=rows[r];
   return `<div class="xr"><b>${esc(c[0].label)}</b><div class="xc">`+c.map(l=>l.role==="in"?
-   `<div class="xf"><small title="${esc(l.cell)}">${esc(l.cap||"")}</small><input data-k="${esc(l.key)}" type="number" step="any" inputmode="decimal" value="${l.def==null?"":l.def}"></div>`:
+   inCell(l):
    `<div class="xf"><small title="${esc(l.cell)}">${esc(l.cap||"")}</small><div class="xo" data-o="${esc(l.key)}">–</div></div>`).join("")+"</div></div>"}).join("")}
 $("xs").onchange=async()=>{
  const sh=$("xs").value;$("xbox").hidden=!sh;$("aerr").textContent="";if(!sh)return;
  let all=[],from=0;
  for(;;){
-  const {data,error}=await SB.from("xl_layout").select("key,cell,role,label,cap,rno,cno,def").eq("sheet",sh).order("rno").order("cno").range(from,from+999);
+  const {data,error}=await SB.from("xl_layout").select("key,cell,role,label,cap,rno,cno,def,pkey,pscale").eq("sheet",sh).order("rno").order("cno").range(from,from+999);
   if(error){$("aerr").textContent=err(error);return}
   all=all.concat(data);if(data.length<1000)break;from+=1000}
  ROWS=all;draw()};
@@ -151,6 +164,45 @@ $("xc").onclick=async()=>{
   else $("aerr").textContent=err(error);
   return}
  document.querySelectorAll("#xrows [data-o]").forEach(o=>{const x=data[o.dataset.o];o.textContent=x==null?"–":n(x,Math.abs(x)>=100?1:Math.abs(x)>=1?2:4)})};
+
+/* Kiln profiles */
+const PFG=[["Kiln",[["kiln_length","Kiln length","m"],["kiln_dia","Kiln effective diameter","m"],["kiln_incl","Kiln inclination","%"],["kiln_rpm","Kiln RPM","rpm"],["capacity_tpd","Kiln capacity","TPD"],["outlet_cone_dia","Outlet cone diameter","m"]]],
+["Iron and coal data",[["iron_feed","Iron feed rate","TPH"],["iron_fet","Iron FeT","%"],["yield","Yield","%"],["iron_moisture","Iron moisture","%"],["mz","MZ (metallisation)","%"],["total_coal","Total coal feed","TPH"],["coal_fc","Coal FC","%"],["coal_moisture","Coal moisture","%"],["coal_density","Coal density","t/m³"],["non_mag_char","Non-mag char","%"]]]];
+const PF=PFG.flatMap(g=>g[1]);
+let PROFS=[],EDIT=null;
+const lsGet=k=>{try{return localStorage.getItem(k)||""}catch(e){return ""}},lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+const curProf=()=>PROFS.find(p=>p.id===$("kp").value)||null;
+function inCell(l){
+ const p=curProf(),raw=p&&l.pkey?p.vals[l.pkey]:null;
+ const pv=raw!=null&&raw!==""?+(raw*(l.pscale||1)).toPrecision(10):null;
+ return `<div class="xf"><small title="${esc(l.cell)}">${esc(l.cap||"")}${pv!=null?(l.cap?" · ":"")+"from kiln":""}</small><input data-k="${esc(l.key)}" type="number" step="any" inputmode="decimal" value="${pv!=null?pv:(l.def==null?"":l.def)}"${pv!=null?' class="fp"':""}></div>`}
+$("kfields").innerHTML=PFG.map(g=>`<h2 style="margin:12px 0 4px">${g[0]}</h2>`+g[1].map(f=>`<div class="row"><label for="kf_${f[0]}">${f[1]} (${f[2]})</label><input id="kf_${f[0]}" type="number" step="any" inputmode="decimal"></div>`).join("")).join("");
+async function loadProfs(){
+ const {data,error}=await SB.from("kiln_profiles").select("*").order("created_at");
+ if(error){$("aerr").textContent=err(error);return}
+ PROFS=data;const cur=lsGet("sid_kiln");
+ $("kp").innerHTML='<option value="">None (sheet values)</option>'+PROFS.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
+ $("kp").value=PROFS.some(p=>p.id===cur)?cur:(PROFS[0]?PROFS[0].id:"");
+ drawKilns();if(ROWS)draw()}
+function drawKilns(){
+ $("klist").innerHTML=PROFS.map(p=>{const t=PF.filter(f=>p.vals[f[0]]!=null&&p.vals[f[0]]!=="").map(f=>f[1]+": "+p.vals[f[0]]+" "+f[2]).join(" · ");
+  return `<div class="card"><b>${esc(p.name)}</b><div class="mut">${esc(t)||"No values yet"}</div><div class="f2"><button class="s" data-e="${esc(p.id)}">Edit</button><button class="s" data-d="${esc(p.id)}">Delete</button></div></div>`}).join("")||'<p class="mut">No kiln saved yet.</p>'}
+function openForm(p){
+ EDIT=p?p.id:null;$("kform").hidden=false;$("kname").value=p?p.name:"";
+ PF.forEach(f=>{$("kf_"+f[0]).value=p&&p.vals[f[0]]!=null?p.vals[f[0]]:""});$("kname").focus()}
+$("kadd").onclick=()=>openForm(null);
+$("kcancel").onclick=()=>{$("kform").hidden=true};
+$("kp").onchange=()=>{lsSet("sid_kiln",$("kp").value);if(ROWS)draw()};
+$("ksave").onclick=async()=>{
+ const name=$("kname").value.trim()||"My kiln",vals={};
+ PF.forEach(f=>{const v=$("kf_"+f[0]).value;if(v!=="")vals[f[0]]=parseFloat(v)});
+ const q=EDIT?SB.from("kiln_profiles").update({name,vals,updated_at:new Date().toISOString()}).eq("id",EDIT):SB.from("kiln_profiles").insert({name,vals});
+ const {error}=await q;if(error){$("aerr").textContent=err(error);return}
+ $("kform").hidden=true;loadProfs()};
+$("klist").onclick=async e=>{
+ const b=e.target.closest("button");if(!b)return;
+ if(b.dataset.e)openForm(PROFS.find(p=>p.id===b.dataset.e));
+ else if(b.dataset.d&&confirm("Delete this kiln?")){const {error}=await SB.from("kiln_profiles").delete().eq("id",b.dataset.d);if(error)$("aerr").textContent=err(error);else loadProfs()}};
 
 /* Admin */
 const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
