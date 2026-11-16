@@ -42,6 +42,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .xo{font-weight:700;color:var(--ac);padding:8px;background:var(--soft);border-radius:4px;font-variant-numeric:tabular-nums}
 #xrows input{background:var(--inb);border-color:var(--inl);color:var(--ini);font-weight:600;text-align:right}
 #xrows input.fp{border-width:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}.chips label{display:flex;gap:4px;align-items:center;padding:4px 9px;border:1px solid var(--ln);border-radius:14px;font-size:.8rem;background:var(--s)}.chips input{width:auto}.chips label:has(input:checked){background:var(--soft);border-color:var(--ac)}
 .f2{display:flex;gap:8px;margin-top:8px}
 .lg{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px;margin:0 4px 0 10px}
 .lg.in{background:var(--inb);border:1px solid var(--inl);margin-left:0}.lg.out{background:var(--soft);border:1px solid var(--ln)}
@@ -82,6 +83,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <div id="p1">
 <div class="card"><h2>Calculator</h2>
 <div class="row"><label for="kp">Kiln</label><select id="kp"></select></div>
+<div class="row"><label for="asof">Daily data up to</label><input id="asof" type="date" title="Leave empty to use the latest daily entry"></div>
 <div class="row"><label for="xs">Sheet</label><select id="xs"></select></div>
 <button class="s" id="xed" hidden style="width:100%;margin-top:6px">Edit mode</button></div>
 <div id="xbox" hidden>
@@ -108,7 +110,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 </div>
 
 <div id="p2" hidden>
-<div class="card"><h2>My kilns</h2><p class="mut">Save your kiln details once. They fill in automatically in the calculators.</p><button class="b" id="kadd">Add kiln</button></div>
+<div class="card"><h2>My kilns</h2><p class="mut">Save only the design of your kiln: length, diameters, cone openings, RPM. Daily values like feed, yield, FeT and coal FC come from the Daily log.</p><button class="b" id="kadd">Add kiln</button></div>
 <div id="kform" class="card" hidden><h2>Kiln details</h2>
 <div class="row"><label for="kname">Kiln name</label><input id="kname" placeholder="Kiln 1"></div>
 <div id="kfields"></div>
@@ -132,9 +134,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <div id="dfields"></div>
 <div class="row"><label for="dnote">Note</label><input id="dnote" placeholder="optional"></div>
 <p class="mut" id="dstatus"></p>
-<div class="btns"><button class="b" id="dsave">Save entry</button><button class="s" id="dfill">Fill from kiln</button></div></div>
+<div class="btns"><button class="b" id="dsave">Save entry</button><button class="s" id="dfill">Copy last entry</button></div></div>
 <div class="card"><h2>Trend graph</h2>
-<div class="row"><label for="gfield">Show</label><select id="gfield"></select></div>
+<div class="mut">Show (tick one or more)</div><div id="gfield" class="chips"></div>
+<div class="row"><label for="gmode">View</label><select id="gmode"><option value="sep">Separate graphs</option><option value="one">One graph (0 to 100% scale)</option></select></div>
 <div class="row"><label for="gkiln">Kiln</label><select id="gkiln"></select></div>
 <div class="row"><label for="grange">Period</label><select id="grange"><option value="30">Last 30 days</option><option value="90" selected>Last 90 days</option><option value="365">Last year</option><option value="0">All</option></select></div>
 <div id="gsvg"></div></div>
@@ -177,7 +180,7 @@ async function start(){
  if(error){await SB.auth.signOut();show("login");$("lerr").textContent=err(error);return}
  ME=data;$("who").textContent=(data.company||data.email||"")+(data.valid_till?" · valid till "+data.valid_till:"");
  $("tabA").hidden=!data.is_admin;$("xed").hidden=!data.is_admin;
- show("app");loadCat();loadProfs();
+ show("app");loadCat();loadProfs();loadDLog();
 }
 $("lform").onsubmit=async e=>{e.preventDefault();$("lerr").textContent="";
  const {error}=await SB.auth.signInWithPassword({email:$("em").value.trim(),password:$("pw").value});
@@ -186,7 +189,7 @@ $("lform").onsubmit=async e=>{e.preventDefault();$("lerr").textContent="";
 $("out").onclick=async()=>{await SB.auth.signOut();show("login")};
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
  document.querySelectorAll(".tabs button").forEach(x=>{const on=x===b;x.setAttribute("aria-selected",on);$(x.dataset.t).hidden=!on});
- if(b.dataset.t==="p3")loadAdmin();if(b.dataset.t==="p4")loadSaved();if(b.dataset.t==="p6")loadDaily()});
+ if(b.dataset.t==="p3")loadAdmin();if(b.dataset.t==="p4")loadSaved();if(b.dataset.t==="p6")loadDaily();if(b.dataset.t==="p1"&&DDIRTY&&ROWS){DDIRTY=false;draw()}});
 
 /* Calculators */
 let CAT=null,ROWS=null;
@@ -224,16 +227,20 @@ $("xc").onclick=async()=>{
  $("savebox").hidden=false;$("stitle").value=$("xs").value.trim()+" · "+new Date().toLocaleDateString();$("ssave").textContent="Save this calculation"};
 
 /* Kiln profiles */
-const PFG=[["Kiln",[["kiln_length","Kiln length","m"],["kiln_dia","Kiln effective diameter","m"],["kiln_incl","Kiln inclination","%"],["kiln_rpm","Kiln RPM","rpm"],["capacity_tpd","Kiln capacity","TPD"],["outlet_cone_dia","Outlet cone diameter","m"]]],
-["Iron and coal data",[["iron_feed","Iron feed rate","TPH"],["iron_fet","Iron FeT","%"],["yield","Yield","%"],["iron_moisture","Iron moisture","%"],["mz","MZ (metallisation)","%"],["total_coal","Total coal feed","TPH"],["coal_fc","Coal FC","%"],["coal_moisture","Coal moisture","%"],["coal_density","Coal density","t/m³"],["non_mag_char","Non-mag char","%"]]]];
+const PFG=[["Kiln design",[["kiln_length","Kiln length","m"],["kiln_dia","Kiln effective diameter (inside castable)","m"],["kiln_shell_dia","Kiln shell (outer) diameter","m"],["castable_thk","Castable thickness","mm"],["kiln_incl","Kiln inclination","%"],["kiln_rpm","Kiln RPM","rpm"],["motor_rpm","Motor RPM","rpm"],["capacity_tpd","Kiln capacity","TPD"]]],
+["Cones and feed tube",[["inlet_cone_dia","Inlet cone diameter","m"],["inlet_cone_len","Inlet cone length","m"],["outlet_cone_dia","Outlet cone diameter (opening)","m"],["outlet_cone_len","Outlet cone length","m"],["feedtube_dia","Feed tube diameter (with castable)","m"]]]];
 const PF=PFG.flatMap(g=>g[1]);
 let PROFS=[],KEDIT=null;
 const lsGet=k=>{try{return localStorage.getItem(k)||""}catch(e){return ""}},lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
 const curProf=()=>PROFS.find(p=>p.id===$("kp").value)||null;
+const DESIGN=new Set(PF.map(f=>f[0]));
+function dailyFor(name,asof){return DLOG.filter(e=>e.kiln===name&&(!asof||e.log_date<=asof)).sort((a,b)=>a.log_date<b.log_date?1:-1)[0]||null}
+function srcVal(p,key){if(!p||!key)return null;if(DESIGN.has(key))return p.vals[key];const e=dailyFor(p.name,$("asof").value);return e?e.vals[key]:null}
 function inCell(l){
- const p=curProf(),raw=p&&l.pkey?p.vals[l.pkey]:null;
+ const p=curProf(),raw=p&&l.pkey?srcVal(p,l.pkey):null;
  const pv=raw!=null&&raw!==""?+(raw*(l.pscale||1)).toPrecision(10):null;
- return `<div class="xf"><small title="${esc(l.cell)}">${esc(l.cap||"")}${pv!=null?(l.cap?" · ":"")+"from kiln":""}</small><input data-k="${esc(l.key)}" type="number" step="any" inputmode="decimal" value="${pv!=null?pv:(l.def==null?"":l.def)}"${pv!=null?' class="fp"':""}></div>`}
+ const tag=pv==null?"":(DESIGN.has(l.pkey)?"from kiln":"from daily");
+ return `<div class="xf"><small title="${esc(l.cell)}">${esc(l.cap||"")}${tag?(l.cap?" · ":"")+tag:""}</small><input data-k="${esc(l.key)}" type="number" step="any" inputmode="decimal" value="${pv!=null?pv:(l.def==null?"":l.def)}"${pv!=null?' class="fp"':""}></div>`}
 $("kfields").innerHTML=PFG.map(g=>`<h2 style="margin:12px 0 4px">${g[0]}</h2>`+g[1].map(f=>`<div class="row"><label for="kf_${f[0]}">${f[1]} (${f[2]})</label><input id="kf_${f[0]}" type="number" step="any" inputmode="decimal"></div>`).join("")).join("");
 async function loadProfs(){
  const {data,error}=await SB.from("kiln_profiles").select("*").order("created_at");
@@ -268,7 +275,7 @@ const fmt=v=>v==null||v===""?"–":(typeof v!=="number"?esc(v):n(v,Math.abs(v)>=
 $("ssave").onclick=async()=>{
  const snap=[];
  document.querySelectorAll("#xrows .xr").forEach(r=>{const lab=r.querySelector("b").textContent;
-  r.querySelectorAll(".xf").forEach(f=>{const cap=f.querySelector("small").textContent.replace(/ ?·? ?from kiln$/,""),i=f.querySelector("input");
+  r.querySelectorAll(".xf").forEach(f=>{const cap=f.querySelector("small").textContent.replace(/ ?·? ?from (kiln|daily)$/,""),i=f.querySelector("input");
    if(i){if(i.value!=="")snap.push({l:lab,c:cap,r:"in",k:i.dataset.k,v:parseFloat(i.value)})}
    else{const o=f.querySelector("[data-o]"),x=LD?LD[o.dataset.o]:null;snap.push({l:lab,c:cap,r:"out",k:o.dataset.o,v:x==null?null:x})}})});
  const p=curProf();
@@ -333,7 +340,7 @@ $("xall").onclick=async()=>{
  const ins=VIS().filter(l=>l.role==="in"),res=[];
  for(const p of PROFS.slice(0,6)){
   const vals={};
-  ins.forEach(l=>{const raw=l.pkey?p.vals[l.pkey]:null;
+  ins.forEach(l=>{const raw=l.pkey?srcVal(p,l.pkey):null;
    if(raw!=null&&raw!=="")vals[l.key]=+(raw*(l.pscale||1)).toPrecision(10);
    else if(l.pkey){if(l.def!=null)vals[l.key]=l.def}
    else if(cur[l.key]!=null)vals[l.key]=cur[l.key];else if(l.def!=null)vals[l.key]=l.def});
@@ -357,7 +364,7 @@ function mkTable(head,rows){
 function calcTable(){
  const rows=[];
  document.querySelectorAll("#xrows .xr").forEach(r=>{const lab=r.querySelector("b").textContent;
-  r.querySelectorAll(".xf").forEach(f=>{const cap=f.querySelector("small").textContent.replace(/ ?·? ?from kiln$/,""),i=f.querySelector("input"),o=f.querySelector("[data-o]");
+  r.querySelectorAll(".xf").forEach(f=>{const cap=f.querySelector("small").textContent.replace(/ ?·? ?from (kiln|daily)$/,""),i=f.querySelector("input"),o=f.querySelector("[data-o]");
    rows.push([lab+(cap?" - "+cap:""),i?i.value:o.textContent,i?"Input":"Result"])})});
  return mkTable(["Item","Value","Type"],rows)}
 const snapTable=s=>mkTable(["Item","Value","Type"],s.snap.map(x=>[x.l+(x.c?" - "+x.c:""),ft(x.v),x.r==="in"?"Input":"Result"]));
@@ -443,16 +450,18 @@ $("lbk").onclick=async()=>{
 
 /* Daily log */
 const XLSX_URL="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-const DF=[["iron_feed","Iron feed","TPH"],["iron_fet","Iron FeT","%"],["yield","Yield","%"],["iron_moisture","Iron moisture","%"],["mz","MZ","%"],["total_coal","Total coal feed","TPH"],["coal_fc","Coal FC","%"],["coal_moisture","Coal moisture","%"],["non_mag_char","Non-mag char","%"],["dri_prod","DRI production","t/day"],["coal_used","Coal used","t/day"]];
+const DF=[["iron_feed","Iron feed","TPH"],["iron_fet","Iron FeT","%"],["yield","Yield","%"],["iron_moisture","Iron moisture","%"],["mz","MZ","%"],["total_coal","Total coal feed","TPH"],["coal_fc","Coal FC","%"],["coal_moisture","Coal moisture","%"],["coal_density","Coal density","t/m³"],["non_mag_char","Non-mag char","%"],["dri_prod","DRI production","t/day"],["coal_used","Coal used","t/day"]];
 const DER=[["coal_dri","Coal / DRI","t/t"],["carbon_dri","Carbon / DRI","t/t"]];
 const COL=["#1b5e8a","#d9822b","#2e8b57","#8a4fb3","#c0392b","#16a085","#7f8c8d"];
-let DLOG=[],UP=null;
+let DLOG=[],UP=null,DDIRTY=false;
+async function loadDLog(){const {data,error}=await SB.from("daily_log").select("*").order("log_date",{ascending:false}).limit(2000);if(!error&&data){DLOG=data;if(ROWS)draw()}}
+$("asof").onchange=()=>{if(ROWS)draw()};
 const dnum=v=>(v===null||v===undefined||v===""||isNaN(v))?null:+v;
 const derive=v=>{const u=dnum(v.coal_used),p=dnum(v.dri_prod),f=dnum(v.coal_fc);return{coal_dri:u!=null&&p?u/p:null,carbon_dri:u!=null&&p&&f!=null?u*f/100/p:null}};
 const dval=(e,k)=>(k in e.vals)?dnum(e.vals[k]):(derive(e.vals)[k]??null);
 const dts=ds=>new Date(ds+"T12:00:00");
 $("dfields").innerHTML=DF.map(f=>`<div class="row"><label for="df_${f[0]}">${f[1]} (${f[2]})</label><input id="df_${f[0]}" type="number" step="any" inputmode="decimal"></div>`).join("");
-$("gfield").innerHTML=[...DF,...DER].map(f=>`<option value="${f[0]}">${f[1]} (${f[2]})</option>`).join("");$("gfield").value="coal_dri";
+$("gfield").innerHTML=[...DF,...DER].map(f=>`<label><input type="checkbox" value="${f[0]}"${f[0]==="coal_dri"?" checked":""}>${f[1]} (${f[2]})</label>`).join("");
 function loadForm(){
  const d=$("ddate").value,k=$("dkiln").value,e=DLOG.find(x=>x.log_date===d&&x.kiln===k);
  DF.forEach(f=>{$("df_"+f[0]).value=e&&e.vals[f[0]]!=null?e.vals[f[0]]:""});
@@ -470,10 +479,11 @@ async function loadDaily(){
  if(kc==="*"||ks.includes(kc))$("gkiln").value=kc||"*";
  loadForm();drawGraph();drawList()}
 $("ddate").onchange=loadForm;$("dkiln").onchange=loadForm;
-$("dfill").onclick=()=>{const p=PROFS.find(x=>x.name===$("dkiln").value);
- if(!p){$("dstatus").textContent="Choose a kiln that has saved data in My kilns.";return}
- DF.forEach(f=>{const v=p.vals[f[0]];if(v!=null&&$("df_"+f[0]).value==="")$("df_"+f[0]).value=v});
- $("dstatus").textContent="Filled from kiln data. Check the numbers and save."};
+$("dfill").onclick=()=>{const k=$("dkiln").value,d=$("ddate").value;
+ const prev=DLOG.filter(e=>e.kiln===k&&e.log_date<d).sort((a,b)=>a.log_date<b.log_date?1:-1)[0];
+ if(!prev){$("dstatus").textContent="No earlier entry found for this kiln.";return}
+ DF.forEach(f=>{const v=prev.vals[f[0]];if(v!=null&&$("df_"+f[0]).value==="")$("df_"+f[0]).value=v});
+ $("dstatus").textContent="Copied from "+prev.log_date+". Check the numbers and save."};
 $("dsave").onclick=async()=>{
  const d=$("ddate").value;if(!d){$("aerr").textContent="Please pick a date.";return}
  const vals={};DF.forEach(f=>{const v=$("df_"+f[0]).value;if(v!=="")vals[f[0]]=parseFloat(v)});
@@ -481,24 +491,35 @@ $("dsave").onclick=async()=>{
  const uid=(await SB.auth.getSession()).data.session.user.id;
  const {error}=await SB.from("daily_log").upsert({user_id:uid,log_date:d,kiln:$("dkiln").value,vals,note:$("dnote").value.trim()||null,updated_at:new Date().toISOString()},{onConflict:"user_id,log_date,kiln"});
  if(error){$("aerr").textContent=err(error);return}
- $("aerr").textContent="";await loadDaily();$("dstatus").textContent="Saved ✓"};
-function drawGraph(){
- const key=$("gfield").value,kf=$("gkiln").value,days=+$("grange").value,lim=days?Date.now()-days*86400000:0,by={};
- DLOG.filter(e=>(kf==="*"||e.kiln===kf)&&(!lim||dts(e.log_date).getTime()>=lim)).forEach(e=>{const v=dval(e,key);if(v==null)return;(by[e.kiln]=by[e.kiln]||[]).push([dts(e.log_date).getTime(),v,e.log_date])});
- const names=Object.keys(by);
- if(!names.length){$("gsvg").innerHTML='<p class="mut">No data to draw yet. Add daily entries first.</p>';return}
- names.forEach(k=>by[k].sort((a,b)=>a[0]-b[0]));
- const all=names.flatMap(k=>by[k]);let x0=Math.min(...all.map(p=>p[0])),x1=Math.max(...all.map(p=>p[0])),y0=Math.min(...all.map(p=>p[1])),y1=Math.max(...all.map(p=>p[1]));
+ $("aerr").textContent="";DDIRTY=true;await loadDaily();$("dstatus").textContent="Saved ✓"};
+function chartSVG(series,pct){
+ const all=series.flatMap(s=>s.pts);
+ let x0=Math.min(...all.map(p=>p[0])),x1=Math.max(...all.map(p=>p[0])),y0=Math.min(...all.map(p=>p[1])),y1=Math.max(...all.map(p=>p[1]));
  if(x0===x1){x0-=86400000;x1+=86400000}
  if(y0===y1){y0-=1;y1+=1}else{const pad=(y1-y0)*.1;y0-=pad;y1+=pad}
- const W=640,H=270,Lm=48,R=12,T=12,B=30,X=t=>Lm+(t-x0)/(x1-x0)*(W-Lm-R),Y=v=>T+(1-(v-y0)/(y1-y0))*(H-T-B),fy=v=>n(v,y1-y0<5?2:1);
+ const W=640,H=250,Lm=48,R=12,T=12,B=30,X=t=>Lm+(t-x0)/(x1-x0)*(W-Lm-R),Y=v=>T+(1-(v-y0)/(y1-y0))*(H-T-B),fy=v=>pct?Math.round(v)+"%":n(v,y1-y0<5?2:1);
  let g="";
  for(let i=0;i<=4;i++){const v=y0+(y1-y0)*i/4,y=Y(v);g+=`<line x1="${Lm}" x2="${W-R}" y1="${y}" y2="${y}" stroke="var(--ln)"/><text x="${Lm-6}" y="${y+4}" text-anchor="end" font-size="11" fill="var(--mut)">${fy(v)}</text>`}
  for(let i=0;i<=3;i++){const t=x0+(x1-x0)*i/3,d=new Date(t);g+=`<text x="${X(t)}" y="${H-8}" text-anchor="middle" font-size="11" fill="var(--mut)">${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}</text>`}
- names.forEach((k,i)=>{const c=COL[i%COL.length],pts=by[k];
-  g+=`<polyline fill="none" stroke="${c}" stroke-width="2" points="${pts.map(p=>X(p[0])+","+Y(p[1])).join(" ")}"/>`+pts.map(p=>`<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="3.5" fill="${c}"><title>${esc(k||"(no kiln)")} ${p[2]}: ${fmt(p[1])}</title></circle>`).join("")});
- $("gsvg").innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Trend chart">${g}</svg><div class="mut" style="display:flex;gap:12px;flex-wrap:wrap">${names.map((k,i)=>`<span><span class="lg" style="background:${COL[i%COL.length]};margin:0 4px 0 0"></span>${esc(k||"(no kiln)")}</span>`).join("")}</div>`}
-$("gfield").onchange=drawGraph;$("grange").onchange=drawGraph;$("gkiln").onchange=()=>{drawGraph();drawList()};
+ series.forEach(s=>{const c=COL[s.ci%COL.length];
+  g+=`<polyline fill="none" stroke="${c}" stroke-width="2" points="${s.pts.map(p=>X(p[0])+","+Y(p[1])).join(" ")}"/>`+s.pts.map(p=>`<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="3.5" fill="${c}"><title>${esc(s.name)} ${p[2]}: ${fmt(p[3])}</title></circle>`).join("")});
+ return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Trend chart">${g}</svg><div class="mut" style="display:flex;gap:12px;flex-wrap:wrap">${series.map(s=>`<span><span class="lg" style="background:${COL[s.ci%COL.length]};margin:0 4px 0 0"></span>${esc(s.name)}</span>`).join("")}</div>`}
+function drawGraph(){
+ const keys=[...document.querySelectorAll("#gfield input:checked")].map(i=>i.value),kf=$("gkiln").value,days=+$("grange").value,lim=days?Date.now()-days*86400000:0,mode=$("gmode").value;
+ if(!keys.length){$("gsvg").innerHTML='<p class="mut">Tick at least one value to draw.</p>';return}
+ const lab=k=>{const f=[...DF,...DER].find(x=>x[0]===k);return f?f[1]+" ("+f[2]+")":k};
+ const ent=DLOG.filter(e=>(kf==="*"||e.kiln===kf)&&(!lim||dts(e.log_date).getTime()>=lim));
+ const kilns=[...new Set(ent.map(e=>e.kiln))],multi=kilns.length>1;
+ const sets=keys.map(k=>{const by={};ent.forEach(e=>{const v=dval(e,k);if(v==null)return;(by[e.kiln]=by[e.kiln]||[]).push([dts(e.log_date).getTime(),v,e.log_date,v])});Object.values(by).forEach(a=>a.sort((p,q)=>p[0]-q[0]));return{k,by}});
+ if(sets.every(s=>!Object.keys(s.by).length)){$("gsvg").innerHTML='<p class="mut">No data to draw yet. Add daily entries first.</p>';return}
+ if(mode==="one"){
+  const series=[];let ci=0;
+  sets.forEach(s=>{const all=Object.values(s.by).flat();if(!all.length)return;const lo=Math.min(...all.map(p=>p[1])),hi=Math.max(...all.map(p=>p[1]));
+   Object.keys(s.by).forEach(kn=>series.push({ci:ci++,name:lab(s.k)+(multi?" · "+(kn||"(no kiln)"):""),pts:s.by[kn].map(p=>[p[0],hi===lo?50:(p[1]-lo)/(hi-lo)*100,p[2],p[3]])}))});
+  $("gsvg").innerHTML='<div class="mut">Each value is scaled from 0 to 100% between its own lowest and highest. Tap a dot to see the real number.</div>'+chartSVG(series,true)}
+ else $("gsvg").innerHTML=sets.map(s=>{const ks=Object.keys(s.by),h=`<h3 style="margin:14px 0 4px;font-size:.95rem">${esc(lab(s.k))}</h3>`;
+  return ks.length?h+chartSVG(ks.map(kn=>({ci:kilns.indexOf(kn),name:kn||"(no kiln)",pts:s.by[kn]})),false):h+'<p class="mut">No data for this value.</p>'}).join("")}
+$("gfield").onchange=drawGraph;$("gmode").onchange=drawGraph;$("grange").onchange=drawGraph;$("gkiln").onchange=()=>{drawGraph();drawList()};
 function drawList(){
  const kf=$("gkiln").value,L=DLOG.filter(e=>kf==="*"||e.kiln===kf).slice(0,60);
  $("dlist").innerHTML=L.map(e=>{const t=[["iron_feed","Feed"],["yield","Yield"],["coal_dri","Coal/DRI"]].map(([k,l])=>{const v=dval(e,k);return v==null?"":l+" "+fmt(v)}).filter(Boolean).join(" · ");
@@ -507,7 +528,7 @@ $("dlist").onclick=async e=>{const b=e.target.closest("button");if(!b)return;
  if(b.dataset.de){const x=DLOG.find(z=>z.id===b.dataset.de);
   if(![...$("dkiln").options].some(o=>o.value===x.kiln)){const o=document.createElement("option");o.value=x.kiln;o.textContent=x.kiln||"(no kiln)";$("dkiln").appendChild(o)}
   $("ddate").value=x.log_date;$("dkiln").value=x.kiln;loadForm();$("ddate").scrollIntoView({behavior:"smooth"})}
- else if(b.dataset.dd&&confirm("Delete this entry?")){const {error}=await SB.from("daily_log").delete().eq("id",b.dataset.dd);if(error)$("aerr").textContent=err(error);else loadDaily()}};
+ else if(b.dataset.dd&&confirm("Delete this entry?")){const {error}=await SB.from("daily_log").delete().eq("id",b.dataset.dd);if(error)$("aerr").textContent=err(error);else{DDIRTY=true;loadDaily()}}};
 function logTable(){
  const kf=$("gkiln").value,L=DLOG.filter(e=>kf==="*"||e.kiln===kf).slice().sort((a,b)=>a.log_date<b.log_date?-1:1);
  return mkTable(["Date","Kiln",...DF.map(f=>f[1]+" ("+f[2]+")"),...DER.map(f=>f[1]+" ("+f[2]+")"),"Note"],L.map(e=>[e.log_date,e.kiln,...DF.map(f=>ft(dnum(e.vals[f[0]]))),...DER.map(f=>ft(derive(e.vals)[f[0]])),e.note||""]))}
@@ -550,7 +571,7 @@ async function importRows(){
  const uid=(await SB.auth.getSession()).data.session.user.id,now=new Date().toISOString();
  const recs=UP.map(o=>({user_id:uid,log_date:o.date,kiln:o.kiln,vals:o.vals,note:o.note,updated_at:now}));
  for(let i=0;i<recs.length;i+=200){const {error}=await SB.from("daily_log").upsert(recs.slice(i,i+200),{onConflict:"user_id,log_date,kiln"});if(error){$("aerr").textContent=err(error);return}}
- $("dprev").innerHTML=`<p>Imported ${recs.length} rows ✓</p>`;$("dfile").value="";UP=null;loadDaily()}
+ $("dprev").innerHTML=`<p>Imported ${recs.length} rows ✓</p>`;$("dfile").value="";UP=null;DDIRTY=true;loadDaily()}
 $("dtpl").onclick=async()=>{
  try{await loadJS(XLSX_URL)}catch(e){$("aerr").textContent="Could not load the Excel tool. Check the internet.";return}
  const head=["Date","Kiln",...DF.map(f=>f[1]+" ("+f[2]+")"),"Note"],ex=[ymd(new Date()),PROFS[0]?PROFS[0].name:"Kiln 1",...DF.map(()=>""),""];
