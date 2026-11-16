@@ -76,6 +76,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <button role="tab" data-t="p2" aria-selected="false">My kilns</button>
 <button role="tab" data-t="p4" aria-selected="false">History</button>
 <button role="tab" data-t="p6" aria-selected="false">Daily log</button>
+<button role="tab" data-t="p7" aria-selected="false">Dashboard</button>
 <button role="tab" data-t="p3" aria-selected="false" id="tabA" hidden>Admin</button>
 </div>
 <p class="err" id="aerr" role="alert"></p>
@@ -150,6 +151,13 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <div id="dprev"></div></div>
 </div>
 
+<div id="p7" hidden>
+<div id="dalerts"></div>
+<div id="dcards"></div>
+<details class="card"><summary><b>Set limits</b> (min and max for each value)</summary>
+<div id="dlim" style="margin-top:8px"></div><button class="b" id="dlsave" style="margin-top:8px">Save limits</button></details>
+</div>
+
 <div id="p3" hidden>
 <p class="mut">To add a customer: Supabase, Authentication, Users, Add user (tick Auto Confirm). They appear here automatically.</p>
 <div class="card"><h2>Layout backup</h2><p class="mut">Downloads every calculator line (names, hidden boxes, defaults). Keep it safe. After an Excel update, send it so your edits can be merged.</p><button class="s" id="lbk">Download layout CSV</button></div>
@@ -189,7 +197,7 @@ $("lform").onsubmit=async e=>{e.preventDefault();$("lerr").textContent="";
 $("out").onclick=async()=>{await SB.auth.signOut();show("login")};
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
  document.querySelectorAll(".tabs button").forEach(x=>{const on=x===b;x.setAttribute("aria-selected",on);$(x.dataset.t).hidden=!on});
- if(b.dataset.t==="p3")loadAdmin();if(b.dataset.t==="p4")loadSaved();if(b.dataset.t==="p6")loadDaily();if(b.dataset.t==="p1"&&DDIRTY&&ROWS){DDIRTY=false;draw()}});
+ if(b.dataset.t==="p3")loadAdmin();if(b.dataset.t==="p4")loadSaved();if(b.dataset.t==="p6")loadDaily();if(b.dataset.t==="p7")loadDash();if(b.dataset.t==="p1"&&DDIRTY&&ROWS){DDIRTY=false;draw()}});
 
 /* Calculators */
 let CAT=null,ROWS=null;
@@ -577,6 +585,30 @@ $("dtpl").onclick=async()=>{
  const head=["Date","Kiln",...DF.map(f=>f[1]+" ("+f[2]+")"),"Note"],ex=[ymd(new Date()),PROFS[0]?PROFS[0].name:"Kiln 1",...DF.map(()=>""),""];
  const ws=XLSX.utils.aoa_to_sheet([head,ex]);ws["!cols"]=head.map(()=>({wch:18}));
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Daily log");XLSX.writeFile(wb,"SID_daily_log_template.xlsx")};
+
+/* Dashboard and limits */
+let LIM={};
+const DP=[...DF,...DER];
+async function loadDash(){
+ await loadDaily();
+ const {data}=await SB.from("user_limits").select("limits");
+ LIM=(data&&data[0]&&data[0].limits)||{};drawDash()}
+function stat(k,v){const l=LIM[k]||{};if(v==null)return null;if(l.hi!=null&&v>l.hi)return "high";if(l.lo!=null&&v<l.lo)return "low";return(l.lo!=null||l.hi!=null)?"ok":"none"}
+function drawDash(){
+ const kilns=[...new Set(DLOG.map(e=>e.kiln))],al=[];
+ $("dcards").innerHTML=kilns.map(kn=>{const e=dailyFor(kn);if(!e)return"";
+  const rows=DP.map(f=>{const v=dval(e,f[0]);if(v==null)return"";const s=stat(f[0],v),l=LIM[f[0]]||{},c=s==="ok"?"#2e8b57":s==="none"?"var(--mut)":"var(--bad)";
+   if(s==="high"||s==="low")al.push(esc(kn||"(no kiln)")+": "+esc(f[1])+" "+fmt(v)+" is "+(s==="high"?"above max "+fmt(l.hi):"below min "+fmt(l.lo)));
+   return `<div class="out"><span>${esc(f[1])}</span><span style="color:${c};font-weight:700">${s==="high"?"▲ ":s==="low"?"▼ ":""}${fmt(v)} <span class="mut">${esc(f[2])}</span></span></div>`}).join("");
+  return `<div class="card"><h2>${esc(kn||"(no kiln)")}</h2><div class="mut">Latest entry: ${dts(e.log_date).toLocaleDateString()}</div>${rows}</div>`}).join("")||'<p class="mut">No daily entries yet. Add them in the Daily log tab.</p>';
+ $("dalerts").innerHTML=al.length?`<div class="card" style="border-color:var(--bad)"><h2 style="color:var(--bad)">Alerts (${al.length})</h2>${al.map(x=>`<div>⚠ ${x}</div>`).join("")}</div>`:"";
+ $("dlim").innerHTML=DP.map(f=>{const l=LIM[f[0]]||{};return `<div class="row"><label>${esc(f[1])} (${esc(f[2])})</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><input data-lk="${f[0]}" data-w="lo" type="number" step="any" placeholder="min" value="${l.lo!=null?l.lo:""}"><input data-lk="${f[0]}" data-w="hi" type="number" step="any" placeholder="max" value="${l.hi!=null?l.hi:""}"></div></div>`}).join("")}
+$("dlsave").onclick=async()=>{
+ const L={};document.querySelectorAll("#dlim input").forEach(i=>{if(i.value!==""){(L[i.dataset.lk]=L[i.dataset.lk]||{})[i.dataset.w]=parseFloat(i.value)}});
+ const uid=(await SB.auth.getSession()).data.session.user.id;
+ const {error}=await SB.from("user_limits").upsert({user_id:uid,limits:L});
+ if(error){$("aerr").textContent=err(error);return}
+ LIM=L;drawDash();$("dlsave").textContent="Saved ✓"};
 
 /* Admin */
 const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
