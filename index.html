@@ -152,6 +152,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 </div>
 
 <div id="p7" hidden>
+<div class="card"><h2>Date range</h2>
+<div class="row"><label for="dfrom">From</label><input id="dfrom" type="date"></div>
+<div class="row"><label for="dto">To</label><input id="dto" type="date"></div>
+<div class="f2"><button class="s" id="dr7">7 days</button><button class="s" id="dr30">30 days</button><button class="s" id="dr90">90 days</button></div></div>
 <div id="dalerts"></div>
 <div id="dcards"></div>
 <details class="card"><summary><b>Set limits</b> (min and max for each value)</summary>
@@ -458,7 +462,7 @@ $("lbk").onclick=async()=>{
 
 /* Daily log */
 const XLSX_URL="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-const DF=[["iron_feed","Iron feed rate","TPH"],["iron_fet","Iron FeT","%"],["yield","Yield","%"],["iron_moisture","Iron moisture","%"],["mz","MZ","%"],["total_coal","Coal feed rate","TPH"],["coal_fc","Coal FC","%"],["coal_moisture","Coal moisture","%"],["coal_density","Coal density","t/m³"],["non_mag_char","Non-mag char","%"],["dri_prod","DRI production","t/day"],["coal_used","Coal used","t/day"]];
+const DF=[["iron_feed","Iron feed rate","TPH"],["iron_total","Total iron feed","t/day"],["iron_fet","Iron FeT","%"],["yield","Yield","%"],["iron_moisture","Iron moisture","%"],["mz","MZ","%"],["total_coal","Coal feed rate","TPH"],["coal_fc","Coal FC","%"],["coal_moisture","Coal moisture","%"],["coal_density","Coal density","t/m³"],["non_mag_char","Non-mag char","%"],["dri_prod","DRI production","t/day"],["coal_used","Coal used","t/day"]];
 const DER=[["coal_dri","Coal / DRI","t/t"],["carbon_dri","Carbon / DRI","kg/t"]];
 const COL=["#1b5e8a","#d9822b","#2e8b57","#8a4fb3","#c0392b","#16a085","#7f8c8d"];
 let DLOG=[],UP=null,DDIRTY=false;
@@ -466,17 +470,20 @@ async function loadDLog(){const {data,error}=await SB.from("daily_log").select("
 $("asof").onchange=()=>{if(ROWS)draw()};
 const dnum=v=>(v===null||v===undefined||v===""||isNaN(v))?null:+v;
 const derive=v=>{
- const cu=dnum(v.coal_used),dp=dnum(v.dri_prod),cf=dnum(v.total_coal),fe=dnum(v.iron_feed),y=dnum(v.yield),fc=dnum(v.coal_fc),mo=dnum(v.coal_moisture);
+ const cu=dnum(v.coal_used),dp=dnum(v.dri_prod)??(dnum(v.iron_total)!=null&&dnum(v.yield)!=null?dnum(v.iron_total)*dnum(v.yield)/100:null),cf=dnum(v.total_coal),fe=dnum(v.iron_feed),y=dnum(v.yield),fc=dnum(v.coal_fc),mo=dnum(v.coal_moisture);
  let cd=null;
  if(cu!=null&&dp)cd=cu/dp;else if(cf!=null&&fe&&y)cd=cf/(fe*y/100);
  return{coal_dri:cd,carbon_dri:cd!=null&&fc!=null?(100-(mo||0))*cd*fc/10:null}};
 const dval=(e,k)=>(k in e.vals)?dnum(e.vals[k]):(derive(e.vals)[k]??null);
 const dts=ds=>new Date(ds+"T12:00:00");
 $("dfields").innerHTML=DF.map(f=>`<div class="row"><label for="df_${f[0]}">${f[1]} (${f[2]})</label><input id="df_${f[0]}" type="number" step="any" inputmode="decimal"></div>`).join("");
+$("df_dri_prod").readOnly=true;$("df_dri_prod").title="Auto: Total iron feed x Yield / 100";
+const calcDri=()=>{const a=parseFloat($("df_iron_total").value),y=parseFloat($("df_yield").value);if(!isNaN(a)&&!isNaN(y))$("df_dri_prod").value=+(a*y/100).toFixed(2)};
+["df_iron_total","df_yield"].forEach(i=>$(i).addEventListener("input",calcDri));
 $("gfield").innerHTML=[...DF,...DER].map(f=>`<label><input type="checkbox" value="${f[0]}"${f[0]==="coal_dri"?" checked":""}>${f[1]} (${f[2]})</label>`).join("");
 function loadForm(){
  const d=$("ddate").value,k=$("dkiln").value,e=DLOG.find(x=>x.log_date===d&&x.kiln===k);
- DF.forEach(f=>{$("df_"+f[0]).value=e&&e.vals[f[0]]!=null?e.vals[f[0]]:""});
+ DF.forEach(f=>{$("df_"+f[0]).value=e&&e.vals[f[0]]!=null?e.vals[f[0]]:""});calcDri();
  $("dnote").value=e&&e.note?e.note:"";
  $("dstatus").textContent=e?"An entry exists for this date and kiln. Saving will replace it.":"New entry."}
 async function loadDaily(){
@@ -494,11 +501,11 @@ $("ddate").onchange=loadForm;$("dkiln").onchange=loadForm;
 $("dfill").onclick=()=>{const k=$("dkiln").value,d=$("ddate").value;
  const prev=DLOG.filter(e=>e.kiln===k&&e.log_date<d).sort((a,b)=>a.log_date<b.log_date?1:-1)[0];
  if(!prev){$("dstatus").textContent="No earlier entry found for this kiln.";return}
- DF.forEach(f=>{const v=prev.vals[f[0]];if(v!=null&&$("df_"+f[0]).value==="")$("df_"+f[0]).value=v});
+ DF.forEach(f=>{const v=prev.vals[f[0]];if(v!=null&&$("df_"+f[0]).value==="")$("df_"+f[0]).value=v});calcDri();
  $("dstatus").textContent="Copied from "+prev.log_date+". Check the numbers and save."};
 $("dsave").onclick=async()=>{
  const d=$("ddate").value;if(!d){$("aerr").textContent="Please pick a date.";return}
- const vals={};DF.forEach(f=>{const v=$("df_"+f[0]).value;if(v!=="")vals[f[0]]=parseFloat(v)});
+ const vals={};DF.forEach(f=>{const v=$("df_"+f[0]).value;if(v!=="")vals[f[0]]=parseFloat(v)});if(vals.iron_total!=null&&vals.yield!=null)vals.dri_prod=+(vals.iron_total*vals.yield/100).toFixed(2);
  if(!Object.keys(vals).length){$("aerr").textContent="Enter at least one value.";return}
  const uid=(await SB.auth.getSession()).data.session.user.id;
  const {error}=await SB.from("daily_log").upsert({user_id:uid,log_date:d,kiln:$("dkiln").value,vals,note:$("dnote").value.trim()||null,updated_at:new Date().toISOString()},{onConflict:"user_id,log_date,kiln"});
@@ -549,7 +556,7 @@ $("dxls").onclick=()=>exportTable(logTable(),"Daily log","xls");$("dpdf").onclic
 const nz=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
 const ALIAS=(()=>{const m={date:"date",day:"date",kiln:"kiln",kilnname:"kiln"};
  DF.forEach(f=>{[nz(f[1]),nz(f[1]+f[2]),nz(f[0])].forEach(a=>m[a]=f[0])});
- Object.assign(m,{feedrate:"iron_feed",ironfeedrate:"iron_feed",fet:"iron_fet",ironfet:"iron_fet",metallisation:"mz",metallization:"mz",totalcoal:"total_coal",coalfeedrate:"total_coal",coalfeed:"total_coal",ironfeed:"iron_feed",fc:"coal_fc",coalfc:"coal_fc",production:"dri_prod",dri:"dri_prod",driproduction:"dri_prod",coalconsumption:"coal_used",coalconsumed:"coal_used",remarks:"note",note:"note"});return m})();
+ Object.assign(m,{feedrate:"iron_feed",ironfeedrate:"iron_feed",fet:"iron_fet",ironfet:"iron_fet",metallisation:"mz",metallization:"mz",totalcoal:"total_coal",toalironfeed:"iron_total",totalironfeed:"iron_total",ironfeedtph:"iron_feed",totalcoalfeedtph:"total_coal",coaldri:"_skip",carbondri:"_skip",coalfeedrate:"total_coal",coalfeed:"total_coal",ironfeed:"iron_feed",fc:"coal_fc",coalfc:"coal_fc",production:"dri_prod",dri:"dri_prod",driproduction:"dri_prod",coalconsumption:"coal_used",coalconsumed:"coal_used",remarks:"note",note:"note"});return m})();
 const ymdU=d=>d.getUTCFullYear()+"-"+String(d.getUTCMonth()+1).padStart(2,"0")+"-"+String(d.getUTCDate()).padStart(2,"0");
 function pdate(v){
  let ds=null;
@@ -567,10 +574,11 @@ $("dfile").onchange=async()=>{
   const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:"",raw:true});
   const good=[],bad=[],ign=new Set();
   rows.forEach((r,i)=>{const o={vals:{},kiln:"",date:null,note:null};
-   Object.keys(r).forEach(h=>{const a=ALIAS[nz(h)];if(!a){if(String(h).trim())ign.add(String(h).trim());return}
+   Object.keys(r).forEach(h=>{const a=ALIAS[nz(h)];if(a==="_skip")return;if(!a){if(String(h).trim())ign.add(String(h).trim());return}
     const v=r[h];
     if(a==="date")o.date=pdate(v);else if(a==="kiln")o.kiln=String(v).trim();else if(a==="note")o.note=String(v).trim()||null;
     else if(v!==""&&v!==null){const x=parseFloat(String(v).replace(",","."));if(!isNaN(x))o.vals[a]=x}});
+   if(o.vals.iron_total!=null&&o.vals.yield!=null)o.vals.dri_prod=+(o.vals.iron_total*o.vals.yield/100).toFixed(2);
    if(!o.date)bad.push("Row "+(i+2)+": date is missing or not understood");
    else if(!Object.keys(o.vals).length)bad.push("Row "+(i+2)+": no numbers found");
    else good.push(o)});
@@ -586,8 +594,14 @@ async function importRows(){
  $("dprev").innerHTML=`<p>Imported ${recs.length} rows ✓</p>`;$("dfile").value="";UP=null;DDIRTY=true;loadDaily()}
 $("dtpl").onclick=async()=>{
  try{await loadJS(XLSX_URL)}catch(e){$("aerr").textContent="Could not load the Excel tool. Check the internet.";return}
- const head=["Date","Kiln",...DF.map(f=>f[1]+" ("+f[2]+")"),"Note"],ex=[ymd(new Date()),PROFS[0]?PROFS[0].name:"Kiln 1",...DF.map(()=>""),""];
- const ws=XLSX.utils.aoa_to_sheet([head,ex]);ws["!cols"]=head.map(()=>({wch:18}));
+ const head=["Date","Kiln",...DF.map(f=>f[1]+" ("+f[2]+")"),"Coal / DRI","Carbon / DRI","Note"];
+ const L=i=>XLSX.utils.encode_col(i),ix=k=>DF.findIndex(f=>f[0]===k)+2,cD=L(ix("dri_prod")),cI=L(ix("iron_total")),cY=L(ix("yield")),cU=L(ix("coal_used")),cF=L(ix("coal_fc")),cM=L(ix("coal_moisture")),cCD=L(DF.length+2),cCB=L(DF.length+3);
+ const ws=XLSX.utils.aoa_to_sheet([head,[ymd(new Date()),PROFS[0]?PROFS[0].name:"Kiln 1"]]);
+ for(let r=2;r<=400;r++){
+  ws[cD+r]={t:"n",f:`IF(OR(${cI}${r}="",${cY}${r}=""),"",${cI}${r}*${cY}${r}/100)`};
+  ws[cCD+r]={t:"n",f:`IF(OR(${cD}${r}="",${cU}${r}=""),"",${cU}${r}/${cD}${r})`};
+  ws[cCB+r]={t:"n",f:`IF(OR(${cCD}${r}="",${cF}${r}=""),"",(100-N(${cM}${r}))*${cCD}${r}*${cF}${r}/10)`}}
+ ws["!ref"]="A1:"+L(head.length-1)+"400";ws["!cols"]=head.map(()=>({wch:18}));
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Daily log");XLSX.writeFile(wb,"SID_daily_log_template.xlsx")};
 
 /* Dashboard and limits */
@@ -596,15 +610,35 @@ const DP=[...DF,...DER];
 async function loadDash(){
  await loadDaily();
  const {data}=await SB.from("user_limits").select("limits");
- LIM=(data&&data[0]&&data[0].limits)||{};drawDash()}
+ LIM=(data&&data[0]&&data[0].limits)||{};if(!$("dto").value)setRange(7);drawDash()}
 function stat(k,v){const l=LIM[k]||{};if(v==null)return null;if(l.hi!=null&&v>l.hi)return "high";if(l.lo!=null&&v<l.lo)return "low";return(l.lo!=null||l.hi!=null)?"ok":"none"}
+const setRange=n=>{const t=new Date(),f=new Date(Date.now()-(n-1)*864e5);$("dto").value=ymd(t);$("dfrom").value=ymd(f)};
+$("dr7").onclick=()=>{setRange(7);drawDash()};$("dr30").onclick=()=>{setRange(30);drawDash()};$("dr90").onclick=()=>{setRange(90);drawDash()};
+$("dfrom").onchange=$("dto").onchange=()=>drawDash();
 function drawDash(){
- const kilns=[...new Set(DLOG.map(e=>e.kiln))],al=[];
- $("dcards").innerHTML=kilns.map(kn=>{const e=dailyFor(kn);if(!e)return"";
-  const rows=DP.map(f=>{const v=dval(e,f[0]);if(v==null)return"";const s=stat(f[0],v),l=LIM[f[0]]||{},c=s==="ok"?"#2e8b57":s==="none"?"var(--mut)":"var(--bad)";
-   if(s==="high"||s==="low")al.push(esc(kn||"(no kiln)")+": "+esc(f[1])+" "+fmt(v)+" is "+(s==="high"?"above max "+fmt(l.hi):"below min "+fmt(l.lo)));
-   return `<div class="out"><span>${esc(f[1])}</span><span style="color:${c};font-weight:700">${s==="high"?"▲ ":s==="low"?"▼ ":""}${fmt(v)} <span class="mut">${esc(f[2])}</span></span></div>`}).join("");
-  return `<div class="card"><h2>${esc(kn||"(no kiln)")}</h2><div class="mut">Latest entry: ${dts(e.log_date).toLocaleDateString()}</div>${rows}</div>`}).join("")||'<p class="mut">No daily entries yet. Add them in the Daily log tab.</p>';
+ const f=$("dfrom").value,t=$("dto").value,al=[];
+ const AV=["iron_feed","iron_fet","yield","iron_moisture","mz","total_coal","coal_fc","coal_moisture","non_mag_char"],SM=["iron_total","dri_prod","coal_used"];
+ const lb=k=>DP.find(x=>x[0]===k);
+ const cuOf=v=>dnum(v.coal_used)??(dnum(v.total_coal)!=null?dnum(v.total_coal)*24:null);
+ const irOf=v=>dnum(v.iron_total)??(dnum(v.iron_feed)!=null?dnum(v.iron_feed)*24:null);
+ const drOf=v=>dnum(v.dri_prod)??(irOf(v)!=null&&dnum(v.yield)!=null?irOf(v)*dnum(v.yield)/100:null);
+ const kilns=[...new Set(DLOG.map(e=>e.kiln))];
+ const cards=kilns.map(kn=>{
+  const E=DLOG.filter(e=>e.kiln===kn&&e.log_date>=f&&e.log_date<=t);if(!E.length)return"";
+  const nm=esc(kn||"(no kiln)");
+  const avg=k=>{const a=E.map(e=>dnum(e.vals[k])).filter(x=>x!=null);return a.length?a.reduce((s,x)=>s+x,0)/a.length:null};
+  const sum=k=>{const a=E.map(e=>k==="dri_prod"?drOf(e.vals):k==="coal_used"?cuOf(e.vals):k==="iron_total"?irOf(e.vals):null).filter(x=>x!=null);return a.length?a.reduce((s,x)=>s+x,0):null};
+  let sc=0,sd=0;E.forEach(e=>{const c=cuOf(e.vals),d=drOf(e.vals);if(c!=null&&d){sc+=c;sd+=d}});
+  const cd=sd?sc/sd:null,fc=avg("coal_fc"),mo=avg("coal_moisture"),cb=cd!=null&&fc!=null?(100-(mo||0))*cd*fc/10:null;
+  const row=(k,v,u,chk)=>{if(v==null)return"";const s=chk?stat(k,v):"none",l=LIM[k]||{},c=s==="ok"?"#2e8b57":s==="none"?"var(--mut)":"var(--bad)";
+   if(s==="high"||s==="low")al.push(nm+": "+esc(lb(k)[1])+" "+fmt(v)+" is "+(s==="high"?"above max "+fmt(l.hi):"below min "+fmt(l.lo)));
+   return `<div class="out"><span>${esc(lb(k)[1])}</span><span style="color:${c};font-weight:700">${s==="high"?"▲ ":s==="low"?"▼ ":""}${fmt(v)} <span class="mut">${u}</span></span></div>`};
+  const head=x=>`<div class="mut" style="margin-top:8px"><b>${x}</b></div>`;
+  return `<div class="card"><h2>${nm}</h2><div class="mut">${E.length} day(s) with entries</div>`+
+   head("Totals (sum)")+SM.map(k=>row(k,sum(k),"t",false)).join("")+
+   head("Ratios (total coal ÷ total DRI)")+row("coal_dri",cd,"t/t",true)+row("carbon_dri",cb,"kg/t",true)+
+   head("Averages")+AV.map(k=>row(k,avg(k),lb(k)[2],true)).join("")+`</div>`}).join("");
+ $("dcards").innerHTML=cards||'<p class="mut">No entries in this date range. Change the dates or add entries in the Daily log tab.</p>';
  $("dalerts").innerHTML=al.length?`<div class="card" style="border-color:var(--bad)"><h2 style="color:var(--bad)">Alerts (${al.length})</h2>${al.map(x=>`<div>⚠ ${x}</div>`).join("")}</div>`:"";
  $("dlim").innerHTML=DP.map(f=>{const l=LIM[f[0]]||{};return `<div class="row"><label>${esc(f[1])} (${esc(f[2])})</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><input data-lk="${f[0]}" data-w="lo" type="number" step="any" placeholder="min" value="${l.lo!=null?l.lo:""}"><input data-lk="${f[0]}" data-w="hi" type="number" step="any" placeholder="max" value="${l.hi!=null?l.hi:""}"></div></div>`}).join("")}
 $("dlsave").onclick=async()=>{
