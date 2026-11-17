@@ -458,14 +458,14 @@ $("lbk").onclick=async()=>{
 
 /* Daily log */
 const XLSX_URL="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-const DF=[["iron_feed","Iron feed","TPH"],["iron_fet","Iron FeT","%"],["yield","Yield","%"],["iron_moisture","Iron moisture","%"],["mz","MZ","%"],["total_coal","Total coal feed","TPH"],["coal_fc","Coal FC","%"],["coal_moisture","Coal moisture","%"],["coal_density","Coal density","t/m³"],["non_mag_char","Non-mag char","%"],["dri_prod","DRI production","t/day"],["coal_used","Coal used","t/day"]];
+const DF=[["iron_feed","Iron feed rate","TPH"],["iron_fet","Iron FeT","%"],["yield","Yield","%"],["iron_moisture","Iron moisture","%"],["mz","MZ","%"],["total_coal","Coal feed rate","TPH"],["coal_fc","Coal FC","%"],["coal_moisture","Coal moisture","%"],["coal_density","Coal density","t/m³"],["non_mag_char","Non-mag char","%"],["dri_prod","DRI production","t/day"],["coal_used","Coal used","t/day"]];
 const DER=[["coal_dri","Coal / DRI","t/t"],["carbon_dri","Carbon / DRI","t/t"]];
 const COL=["#1b5e8a","#d9822b","#2e8b57","#8a4fb3","#c0392b","#16a085","#7f8c8d"];
 let DLOG=[],UP=null,DDIRTY=false;
 async function loadDLog(){const {data,error}=await SB.from("daily_log").select("*").order("log_date",{ascending:false}).limit(2000);if(!error&&data){DLOG=data;if(ROWS)draw()}}
 $("asof").onchange=()=>{if(ROWS)draw()};
 const dnum=v=>(v===null||v===undefined||v===""||isNaN(v))?null:+v;
-const derive=v=>{const u=dnum(v.coal_used),p=dnum(v.dri_prod),f=dnum(v.coal_fc);return{coal_dri:u!=null&&p?u/p:null,carbon_dri:u!=null&&p&&f!=null?u*f/100/p:null}};
+const derive=v=>{const u=dnum(v.coal_used)??(dnum(v.total_coal)!=null?dnum(v.total_coal)*24:null),p=dnum(v.dri_prod),f=dnum(v.coal_fc);return{coal_dri:u!=null&&p?u/p:null,carbon_dri:u!=null&&p&&f!=null?u*f/100/p:null}};
 const dval=(e,k)=>(k in e.vals)?dnum(e.vals[k]):(derive(e.vals)[k]??null);
 const dts=ds=>new Date(ds+"T12:00:00");
 $("dfields").innerHTML=DF.map(f=>`<div class="row"><label for="df_${f[0]}">${f[1]} (${f[2]})</label><input id="df_${f[0]}" type="number" step="any" inputmode="decimal"></div>`).join("");
@@ -545,7 +545,7 @@ $("dxls").onclick=()=>exportTable(logTable(),"Daily log","xls");$("dpdf").onclic
 const nz=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
 const ALIAS=(()=>{const m={date:"date",day:"date",kiln:"kiln",kilnname:"kiln"};
  DF.forEach(f=>{[nz(f[1]),nz(f[1]+f[2]),nz(f[0])].forEach(a=>m[a]=f[0])});
- Object.assign(m,{feedrate:"iron_feed",ironfeedrate:"iron_feed",fet:"iron_fet",ironfet:"iron_fet",metallisation:"mz",metallization:"mz",totalcoal:"total_coal",fc:"coal_fc",coalfc:"coal_fc",production:"dri_prod",dri:"dri_prod",driproduction:"dri_prod",coalconsumption:"coal_used",coalconsumed:"coal_used",remarks:"note",note:"note"});return m})();
+ Object.assign(m,{feedrate:"iron_feed",ironfeedrate:"iron_feed",fet:"iron_fet",ironfet:"iron_fet",metallisation:"mz",metallization:"mz",totalcoal:"total_coal",coalfeedrate:"total_coal",coalfeed:"total_coal",ironfeed:"iron_feed",fc:"coal_fc",coalfc:"coal_fc",production:"dri_prod",dri:"dri_prod",driproduction:"dri_prod",coalconsumption:"coal_used",coalconsumed:"coal_used",remarks:"note",note:"note"});return m})();
 const ymdU=d=>d.getUTCFullYear()+"-"+String(d.getUTCMonth()+1).padStart(2,"0")+"-"+String(d.getUTCDate()).padStart(2,"0");
 function pdate(v){
  let ds=null;
