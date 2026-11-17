@@ -459,13 +459,17 @@ $("lbk").onclick=async()=>{
 /* Daily log */
 const XLSX_URL="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
 const DF=[["iron_feed","Iron feed rate","TPH"],["iron_fet","Iron FeT","%"],["yield","Yield","%"],["iron_moisture","Iron moisture","%"],["mz","MZ","%"],["total_coal","Coal feed rate","TPH"],["coal_fc","Coal FC","%"],["coal_moisture","Coal moisture","%"],["coal_density","Coal density","t/m³"],["non_mag_char","Non-mag char","%"],["dri_prod","DRI production","t/day"],["coal_used","Coal used","t/day"]];
-const DER=[["coal_dri","Coal / DRI","t/t"],["carbon_dri","Carbon / DRI","t/t"]];
+const DER=[["coal_dri","Coal / DRI","t/t"],["carbon_dri","Carbon / DRI","kg/t"]];
 const COL=["#1b5e8a","#d9822b","#2e8b57","#8a4fb3","#c0392b","#16a085","#7f8c8d"];
 let DLOG=[],UP=null,DDIRTY=false;
 async function loadDLog(){const {data,error}=await SB.from("daily_log").select("*").order("log_date",{ascending:false}).limit(2000);if(!error&&data){DLOG=data;if(ROWS)draw()}}
 $("asof").onchange=()=>{if(ROWS)draw()};
 const dnum=v=>(v===null||v===undefined||v===""||isNaN(v))?null:+v;
-const derive=v=>{const u=dnum(v.coal_used)??(dnum(v.total_coal)!=null?dnum(v.total_coal)*24:null),p=dnum(v.dri_prod),f=dnum(v.coal_fc);return{coal_dri:u!=null&&p?u/p:null,carbon_dri:u!=null&&p&&f!=null?u*f/100/p:null}};
+const derive=v=>{
+ const cu=dnum(v.coal_used),dp=dnum(v.dri_prod),cf=dnum(v.total_coal),fe=dnum(v.iron_feed),y=dnum(v.yield),fc=dnum(v.coal_fc),mo=dnum(v.coal_moisture);
+ let cd=null;
+ if(cu!=null&&dp)cd=cu/dp;else if(cf!=null&&fe&&y)cd=cf/(fe*y/100);
+ return{coal_dri:cd,carbon_dri:cd!=null&&fc!=null?(100-(mo||0))*cd*fc/10:null}};
 const dval=(e,k)=>(k in e.vals)?dnum(e.vals[k]):(derive(e.vals)[k]??null);
 const dts=ds=>new Date(ds+"T12:00:00");
 $("dfields").innerHTML=DF.map(f=>`<div class="row"><label for="df_${f[0]}">${f[1]} (${f[2]})</label><input id="df_${f[0]}" type="number" step="any" inputmode="decimal"></div>`).join("");
