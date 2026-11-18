@@ -169,12 +169,17 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <div class="card"><h2>Recent activity</h2><div id="logs"></div></div>
 </div>
 </section>
+<div class="mut" id="vtag" style="font-size:.7rem;text-align:center;margin-top:16px"></div>
+<p class="mut" style="font-size:.7rem;text-align:center;margin-top:16px">Version 7.2 (daily log, dashboard range)</p>
 </main>
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 const CFG=window.SID_CONFIG||{};
+const APP_VER="v7c-daily-dashboard-range";
+$("vtag").textContent="App version: "+APP_VER;
+fetch("index.html?_="+Date.now(),{cache:"no-store"}).then(r=>r.text()).then(t=>{const m=t.match(/APP_VER="([^"]+)"/);if(m&&m[1]!==APP_VER&&!sessionStorage.getItem("sid_rl")){sessionStorage.setItem("sid_rl","1");location.reload()}}).catch(()=>{});
 const SB=supabase.createClient(CFG.url||"https://example.invalid",CFG.key||"missing");
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
