@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SID Calculation</title>
+<meta name="theme-color" content="#1b5e8a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SID Calc">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#eeede9;--s:#fff;--ink:#1c2226;--mut:#5a656c;--ln:#cfd3d4;--ac:#1b5e8a;--soft:#dbe9f3;--bad:#b3261e;--inb:#fff6cc;--inl:#d4b13a;--ini:#14325f;color-scheme:light dark}
+@media(prefers-color-scheme:dark){:root{--bg:#13171a;--s:#1d2327;--ink:#e6ebee;--mut:#98a4ab;--ln:#333d43;--ac:#6bb7ea;--soft:#22384a;--bad:#f08a80;--inb:#3a3320;--inl:#8a7a2f;--ini:#ffe9a0}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 Bahnschrift,"Segoe UI",system-ui,sans-serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+main{max-width:680px;margin:0 auto;padding:14px 14px 40px}
+h1{font-size:1.3rem;margin:4px 0}h2{font-size:1rem;margin:0 0 8px}
+.mut{color:var(--mut);font-size:.85rem}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.tabs{display:flex;border-bottom:2px solid var(--ln);margin-bottom:12px}
+.tabs button{flex:1;padding:10px 4px;background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;font:inherit;font-weight:600;color:var(--mut)}
+.tabs button[aria-selected=true]{color:var(--ac);border-bottom-color:var(--ac)}
+.tabs{overflow-x:auto}.tabs button{font-size:.82rem;flex:1 0 auto;white-space:nowrap;padding:10px 12px}
+.cmp{width:100%;border-collapse:collapse}.cmp td,.cmp th{padding:4px 6px;border-top:1px solid var(--ln);text-align:right;font-size:.85rem}.cmp th{color:var(--mut);font-weight:600}.cmp td:first-child,.cmp th:first-child{text-align:left}.cmp tr.chg td{background:var(--inb)}
+.det{margin-top:8px;font-size:.85rem}.det div{display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--ln);padding:3px 0}
+#printarea{display:none}
+@media print{body.printing main{display:none}body.printing #printarea{display:block;color:#000;background:#fff;padding:12px;font-family:Arial,sans-serif}#printarea table{width:100%;border-collapse:collapse}#printarea td,#printarea th{border:1px solid #888;padding:4px 6px;font-size:12px;text-align:left}#printarea th{background:#ddd}}
+.card{background:var(--s);border:1px solid var(--ln);border-radius:6px;padding:12px;margin-bottom:12px}
+.row{display:grid;grid-template-columns:1fr 150px;gap:8px;align-items:center;padding:5px 0}
+input,select{width:100%;padding:8px;font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--ln);border-radius:4px}
+button.b{padding:10px 14px;font:inherit;font-weight:600;background:var(--ac);color:#fff;border:0;border-radius:4px;width:100%}
+button.s{padding:6px 10px;font:inherit;font-size:.85rem;background:var(--soft);color:var(--ink);border:1px solid var(--ln);border-radius:4px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--ac);outline-offset:1px}
+.err{color:var(--bad);min-height:1.3em;margin:8px 0}
+.xr{background:var(--s);border:1px solid var(--ln);border-radius:6px;padding:8px 10px;margin-bottom:8px}
+.xr b{display:block;font-weight:600;font-size:.9rem;margin-bottom:6px}
+.xc{display:flex;flex-wrap:wrap;gap:8px}.xf{flex:1 1 110px;min-width:90px}
+.xf small{display:block;color:var(--mut);font-size:.7rem;min-height:.9rem}
+.xo{font-weight:700;color:var(--ac);padding:8px;background:var(--soft);border-radius:4px;font-variant-numeric:tabular-nums}
+#xrows input{background:var(--inb);border-color:var(--inl);color:var(--ini);font-weight:600;text-align:right}
+#xrows input.fp{border-width:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}.chips label{display:flex;gap:4px;align-items:center;padding:4px 9px;border:1px solid var(--ln);border-radius:14px;font-size:.8rem;background:var(--s)}.chips input{width:auto}.chips label:has(input:checked){background:var(--soft);border-color:var(--ac)}
+.f2{display:flex;gap:8px;margin-top:8px}
+.lg{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px;margin:0 4px 0 10px}
+.lg.in{background:var(--inb);border:1px solid var(--inl);margin-left:0}.lg.out{background:var(--soft);border:1px solid var(--ln)}
+.btns{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:12px}
+.btns .s{padding:10px}
+.u .f{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.tag{font-size:.75rem;background:var(--soft);padding:1px 6px;border-radius:3px}
+.off{color:var(--bad);font-weight:700}
+.out{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid var(--ln)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+
+<section id="login" hidden>
+<h1>SID Calculation</h1>
+<p class="mut">Sign in with the email and password given to you.</p>
+<form id="lform" class="card">
+<div class="row"><label for="em">Email</label><input id="em" type="email" autocomplete="username" required></div>
+<div class="row"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required></div>
+<p class="err" id="lerr" role="alert"></p>
+<button class="b" type="submit">Sign in</button>
+</form>
+</section>
+
+<section id="app" hidden>
+<div class="top"><div><h1>SID Calculation</h1><div class="mut" id="who"></div></div><button class="s" id="out">Sign out</button></div>
+<div class="tabs" role="tablist">
+<button role="tab" data-t="p1" aria-selected="true">Calculators</button>
+<button role="tab" data-t="p2" aria-selected="false">My kilns</button>
+<button role="tab" data-t="p4" aria-selected="false">History</button>
+<button role="tab" data-t="p6" aria-selected="false">Daily log</button>
+<button role="tab" data-t="p7" aria-selected="false">Dashboard</button>
+<button role="tab" data-t="p3" aria-selected="false" id="tabA" hidden>Admin</button>
+</div>
+<p class="err" id="aerr" role="alert"></p>
+
+<div id="p1">
+<div class="card"><h2>Calculator</h2>
+<div class="row"><label for="kp">Kiln</label><select id="kp"></select></div>
+<div class="row"><label for="asof">Daily data up to</label><input id="asof" type="date" title="Leave empty to use the latest daily entry"></div>
+<div class="row"><label for="xs">Sheet</label><select id="xs"></select></div>
+<button class="s" id="xed" hidden style="width:100%;margin-top:6px">Edit mode</button></div>
+<div id="xbox" hidden>
+<p class="mut" style="margin:0 0 8px"><span class="lg in"></span>You can change <span class="lg out"></span>Result</p>
+<div class="btns"><button class="b" id="xc">Calculate</button><button class="s" id="xr">Reset</button></div>
+<button class="s" id="xall" style="width:100%;margin:0 0 12px" hidden>Compare all my kilns on this sheet</button>
+<div id="xout"></div>
+<div id="edbox" class="card" hidden>
+<h2>Edit this box</h2><div class="mut" id="edinfo"></div>
+<div class="row"><label for="edl">Line name</label><input id="edl" type="text"></div>
+<div class="row"><label for="edc">Box name</label><input id="edc" type="text"></div>
+<div class="row" id="eddr"><label for="edd">Default value</label><input id="edd" type="number" step="any" inputmode="decimal"></div>
+<div class="row" id="edtr"><label for="edt">Type</label><select id="edt"><option value="in">Input (can be changed)</option><option value="out">Result (locked)</option></select></div>
+<div class="row"><label for="edv">Show this box</label><select id="edv"><option value="1">Yes</option><option value="0">No (hidden)</option></select></div>
+<div class="row"><label for="edw">Whole line</label><select id="edw"><option value="">No change</option><option value="1">Show line</option><option value="0">Hide line</option></select></div>
+<div class="btns"><button class="b" id="edsave">Save changes</button><button class="s" id="edclose">Close</button></div></div>
+<div id="savebox" class="card" hidden>
+<div class="row"><label for="stitle">Title</label><input id="stitle"></div>
+<div class="row"><label for="snote">Note (optional)</label><input id="snote"></div>
+<button class="b" id="ssave">Save this calculation</button>
+<div class="f2" style="margin-top:8px"><button class="s" id="rpdf" style="flex:1">PDF</button><button class="s" id="rxls" style="flex:1">Excel</button><button class="s" id="rprt" style="flex:1">Print</button></div></div>
+<div id="xrows"></div>
+</div>
+</div>
+
+<div id="p2" hidden>
+<div class="card"><h2>My kilns</h2><p class="mut">Save only the design of your kiln: length, diameters, cone openings, RPM. Daily values like feed, yield, FeT and coal FC come from the Daily log.</p><button class="b" id="kadd">Add kiln</button></div>
+<div id="kform" class="card" hidden><h2>Kiln details</h2>
+<div class="row"><label for="kname">Kiln name</label><input id="kname" placeholder="Kiln 1"></div>
+<div id="kfields"></div>
+<div class="btns"><button class="b" id="ksave">Save</button><button class="s" id="kcancel">Cancel</button></div></div>
+<div id="klist"></div>
+</div>
+
+<div id="p4" hidden>
+<div class="card"><h2>Saved calculations</h2>
+<div class="row"><label for="hf">Calculator</label><select id="hf"></select></div>
+<div class="row"><label for="hq">Search</label><input id="hq" placeholder="title or note"></div>
+<div class="f2"><button class="s" id="hcmp">Compare ticked</button><button class="s" id="hkil">Latest of each kiln</button></div>
+<label class="mut" style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="honly" style="width:auto"> Show only rows that differ</label></div>
+<div id="hout"></div><div id="hlist"></div>
+</div>
+
+<div id="p6" hidden>
+<div class="card"><h2>Daily entry</h2>
+<div class="row"><label for="ddate">Date</label><input id="ddate" type="date"></div>
+<div class="row"><label for="dkiln">Kiln</label><select id="dkiln"></select></div>
+<div id="dfields"></div>
+<div class="row"><label for="dnote">Note</label><input id="dnote" placeholder="optional"></div>
+<p class="mut" id="dstatus"></p>
+<div class="btns"><button class="b" id="dsave">Save entry</button><button class="s" id="dfill">Copy last entry</button></div></div>
+<div class="card"><h2>Trend graph</h2>
+<div class="mut">Show (tick one or more)</div><div id="gfield" class="chips"></div>
+<div class="row"><label for="gmode">View</label><select id="gmode"><option value="sep">Separate graphs</option><option value="one">One graph (0 to 100% scale)</option></select></div>
+<div class="row"><label for="gkiln">Kiln</label><select id="gkiln"></select></div>
+<div class="row"><label for="grange">Period</label><select id="grange"><option value="30">Last 30 days</option><option value="90" selected>Last 90 days</option><option value="365">Last year</option><option value="0">All</option></select></div>
+<div id="gsvg"></div></div>
+<div class="card"><h2>Entries</h2><div class="f2"><button class="s" id="dxls" style="flex:1">Excel</button><button class="s" id="dpdf" style="flex:1">PDF</button></div></div>
+<div id="dlist"></div>
+<div class="card"><h2>Upload from Excel or CSV</h2>
+<p class="mut">First row must have column names (Date, Kiln, Iron feed ...). Download the template to see them. If a date and kiln already exist, the row replaces it.</p>
+<button class="s" id="dtpl">Download template</button>
+<input id="dfile" type="file" accept=".xlsx,.xls,.csv" style="margin-top:8px">
+<div id="dprev"></div></div>
+</div>
+
+<div id="p7" hidden>
+<div class="card"><h2>Date range</h2>
+<div class="row"><label for="dfrom">From</label><input id="dfrom" type="date"></div>
+<div class="row"><label for="dto">To</label><input id="dto" type="date"></div>
+<div class="f2"><button class="s" id="dr7">7 days</button><button class="s" id="dr30">30 days</button><button class="s" id="dr90">90 days</button><button class="s" id="dr0">All</button></div></div>
+<div id="dalerts"></div>
+<div id="dcards"></div>
+<details class="card"><summary><b>Set limits</b> (min and max for each value)</summary>
+<div id="dlim" style="margin-top:8px"></div><button class="b" id="dlsave" style="margin-top:8px">Save limits</button></details>
+</div>
+
+<div id="p3" hidden>
+<p class="mut">To add a customer: Supabase, Authentication, Users, Add user (tick Auto Confirm). They appear here automatically.</p>
+<div class="card"><h2>Layout backup</h2><p class="mut">Downloads every calculator line (names, hidden boxes, defaults). Keep it safe. After an Excel update, send it so your edits can be merged.</p><button class="s" id="lbk">Download layout CSV</button></div>
+<div id="ulist"></div>
+<div class="card"><h2>Recent activity</h2><div id="logs"></div></div>
+</div>
+</section>
+<div class="mut" id="vtag" style="font-size:.7rem;text-align:center;margin-top:16px"></div>
+<p class="mut" style="font-size:.7rem;text-align:center;margin-top:16px">Version 7.3 (daily log, dashboard range)</p>
+</main>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+const CFG=window.SID_CONFIG||{};
+const APP_VER="v7c-daily-dashboard-range";
+$("vtag").textContent="App version: "+APP_VER;
+fetch("index.html?_="+Date.now(),{cache:"no-store"}).then(r=>r.text()).then(t=>{const m=t.match(/APP_VER="([^"]+)"/);if(m&&m[1]!==APP_VER&&!sessionStorage.getItem("sid_rl")){sessionStorage.setItem("sid_rl","1");location.reload()}}).catch(()=>{});
+const SB=supabase.createClient(CFG.url||"https://example.invalid",CFG.key||"missing");
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const n=(v,d)=>Number(v).toLocaleString("en-IN",{minimumFractionDigits:d,maximumFractionDigits:d});
+const DEV=(()=>{try{let d=localStorage.getItem("sid_dev");if(!d){d=crypto.randomUUID?crypto.randomUUID():Date.now()+Math.random().toString(36).slice(2);localStorage.setItem("sid_dev",d)}return d}catch(e){return "nodev"}})();
+const MSG={BLOCKED:"Your account is blocked. Please contact your provider.",EXPIRED:"Your access has expired. Please contact your provider.",OTHER_DEVICE:"This account is linked to another device. Ask your provider to reset it.",NO_PROFILE:"Account not found. Please contact your provider.",NO_SHEET:"This calculator is not available."};
+const err=e=>{const m=(e&&e.message)||"";for(const k in MSG)if(m.includes(k))return MSG[k];return m||"Something went wrong."};
+const show=w=>{$("login").hidden=w!=="login";$("app").hidden=w!=="app"};
+
+async function start(){
+ if(!CFG.url){show("login");$("lerr").textContent="App is not configured yet (config.js missing).";return}
+ const {data:{session}}=await SB.auth.getSession();
+ if(!session){show("login");return}
+ const {data,error}=await SB.rpc("session_check",{p_device:DEV});
+ if(error){await SB.auth.signOut();show("login");$("lerr").textContent=err(error);return}
+ ME=data;$("who").textContent=(data.company||data.email||"")+(data.valid_till?" · valid till "+data.valid_till:"");
+ $("tabA").hidden=!data.is_admin;$("xed").hidden=!data.is_admin;
+ show("app");loadCat();loadProfs();loadDLog();
+}
+$("lform").onsubmit=async e=>{e.preventDefault();$("lerr").textContent="";
+ const {error}=await SB.auth.signInWithPassword({email:$("em").value.trim(),password:$("pw").value});
+ if(error){$("lerr").textContent=/Invalid login/i.test(error.message)?"Wrong email or password.":(error.message||"Could not sign in.");return}
+ $("pw").value="";start()};
+$("out").onclick=async()=>{await SB.auth.signOut();show("login")};
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+ document.querySelectorAll(".tabs button").forEach(x=>{const on=x===b;x.setAttribute("aria-selected",on);$(x.dataset.t).hidden=!on});
+ if(b.dataset.t==="p3")loadAdmin();if(b.dataset.t==="p4")loadSaved();if(b.dataset.t==="p6")loadDaily();if(b.dataset.t==="p7")loadDash();if(b.dataset.t==="p1"&&DDIRTY&&ROWS){DDIRTY=false;draw()}});
+
+/* Calculators */
+let CAT=null,ROWS=null;
+async function loadCat(){
+ if(CAT)return;
+ const {data,error}=await SB.rpc("xl_catalog");
+ if(error){$("aerr").textContent=err(error);return}
+ CAT=data;const mods=[...new Set(CAT.map(r=>r.module))];
+ $("xs").innerHTML='<option value="">Select a calculator</option>'+mods.map(m=>`<optgroup label="${esc(m.replace(/^\d+\s*/,""))}">`+CAT.filter(r=>r.module===m).map(r=>`<option value="${esc(r.name)}">${esc(r.name.trim())}</option>`).join("")+"</optgroup>").join("")}
+function draw0(){
+ const rows={};(EDIT?ROWS:VIS()).forEach(l=>{(rows[l.rno]=rows[l.rno]||[]).push(l)});
+ $("xrows").innerHTML=Object.keys(rows).map(Number).sort((a,b)=>a-b).map(r=>{const c=rows[r];
+  return `<div class="xr"><b>${esc(c[0].label)}</b><div class="xc">`+c.map(l=>EDIT?edTile(l):l.role==="in"?
+   inCell(l):
+   `<div class="xf"><small title="${esc(l.cell)}">${esc(l.cap||"")}</small><div class="xo" data-o="${esc(l.key)}">–</div></div>`).join("")+"</div></div>"}).join("")}
+$("xs").onchange=async()=>{
+ $("xout").innerHTML="";const sh=$("xs").value;$("xbox").hidden=!sh;$("savebox").hidden=true;$("aerr").textContent="";if(!sh)return;
+ let all=[],from=0;
+ for(;;){
+  const {data,error}=await SB.from("xl_layout").select("key,cell,role,label,cap,rno,cno,def,pkey,pscale,visible").eq("sheet",sh).order("rno").order("cno").range(from,from+999);
+  if(error){$("aerr").textContent=err(error);return}
+  all=all.concat(data);if(data.length<1000)break;from+=1000}
+ ROWS=all;draw()};
+$("xr").onclick=()=>{if(ROWS)draw()};
+$("xc").onclick=async()=>{
+ $("aerr").textContent="";
+ const vals={};document.querySelectorAll("#xrows input").forEach(i=>{if(i.value!=="")vals[i.dataset.k]=parseFloat(i.value)});
+ const {data,error}=await SB.rpc("run_sheet",{p_device:DEV,p_sheet:$("xs").value,p_vals:vals});
+ if(error){
+  if(/BLOCKED|EXPIRED|OTHER_DEVICE|NO_PROFILE/.test(error.message)){await SB.auth.signOut();show("login");$("lerr").textContent=err(error)}
+  else $("aerr").textContent=err(error);
+  return}
+ LD=data;
+ document.querySelectorAll("#xrows [data-o]").forEach(o=>{const x=data[o.dataset.o];o.textContent=x==null?"–":n(x,Math.abs(x)>=100?1:Math.abs(x)>=1?2:4)});
+ $("savebox").hidden=false;$("stitle").value=$("xs").value.trim()+" · "+new Date().toLocaleDateString();$("ssave").textContent="Save this calculation"};
+
+/* Kiln profiles */
+const PFG=[["Kiln design",[["kiln_length","Kiln length","m"],["kiln_dia","Kiln effective diameter (inside castable)","m"],["kiln_shell_dia","Kiln shell (outer) diameter","m"],["castable_thk","Castable thickness","mm"],["kiln_incl","Kiln inclination","%"],["kiln_rpm","Kiln RPM","rpm"],["motor_rpm","Motor RPM","rpm"],["capacity_tpd","Kiln capacity","TPD"]]],
+["Cones and feed tube",[["inlet_cone_dia","Inlet cone diameter","m"],["inlet_cone_len","Inlet cone length","m"],["outlet_cone_dia","Outlet cone diameter (opening)","m"],["outlet_cone_len","Outlet cone length","m"],["feedtube_dia","Feed tube diameter (with castable)","m"]]]];
+const PF=PFG.flatMap(g=>g[1]);
+let PROFS=[],KEDIT=null;
+const lsGet=k=>{try{return localStorage.getItem(k)||""}catch(e){return ""}},lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+const curProf=()=>PROFS.find(p=>p.id===$("kp").value)||null;
+const DESIGN=new Set(PF.map(f=>f[0]));
+function dailyFor(name,asof){return DLOG.filter(e=>e.kiln===name&&(!asof||e.log_date<=asof)).sort((a,b)=>a.log_date<b.log_date?1:-1)[0]||null}
+function srcVal(p,key){if(!p||!key)return null;if(DESIGN.has(key))return p.vals[key];const e=dailyFor(p.name,$("asof").value);return e?e.vals[key]:null}
+function inCell(l){
+ const p=curProf(),raw=p&&l.pkey?srcVal(p,l.pkey):null;
+ const pv=raw!=null&&raw!==""?+(raw*(l.pscale||1)).toPrecision(10):null;
+ const tag=pv==null?"":(DESIGN.has(l.pkey)?"from kiln":"from daily");
+ return `<div class="xf"><small title="${esc(l.cell)}">${esc(l.cap||"")}${tag?(l.cap?" · ":"")+tag:""}</small><input data-k="${esc(l.key)}" type="number" step="any" inputmode="decimal" value="${pv!=null?pv:(l.def==null?"":l.def)}"${pv!=null?' class="fp"':""}></div>`}
+$("kfields").innerHTML=PFG.map(g=>`<h2 style="margin:12px 0 4px">${g[0]}</h2>`+g[1].map(f=>`<div class="row"><label for="kf_${f[0]}">${f[1]} (${f[2]})</label><input id="kf_${f[0]}" type="number" step="any" inputmode="decimal"></div>`).join("")).join("");
+async function loadProfs(){
+ const {data,error}=await SB.from("kiln_profiles").select("*").order("created_at");
+ if(error){$("aerr").textContent=err(error);return}
+ PROFS=data;const cur=lsGet("sid_kiln");
+ $("kp").innerHTML='<option value="">None (sheet values)</option>'+PROFS.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
+ $("kp").value=PROFS.some(p=>p.id===cur)?cur:(PROFS[0]?PROFS[0].id:"");
+ drawKilns();if(ROWS)draw()}
+function drawKilns(){
+ $("klist").innerHTML=PROFS.map(p=>{const t=PF.filter(f=>p.vals[f[0]]!=null&&p.vals[f[0]]!=="").map(f=>f[1]+": "+p.vals[f[0]]+" "+f[2]).join(" · ");
+  return `<div class="card"><b>${esc(p.name)}</b><div class="mut">${esc(t)||"No values yet"}</div><div class="f2"><button class="s" data-e="${esc(p.id)}">Edit</button><button class="s" data-d="${esc(p.id)}">Delete</button></div></div>`}).join("")||'<p class="mut">No kiln saved yet.</p>'}
+function openForm(p){
+ KEDIT=p?p.id:null;$("kform").hidden=false;$("kname").value=p?p.name:"";
+ PF.forEach(f=>{$("kf_"+f[0]).value=p&&p.vals[f[0]]!=null?p.vals[f[0]]:""});$("kname").focus()}
+$("kadd").onclick=()=>openForm(null);
+$("kcancel").onclick=()=>{$("kform").hidden=true};
+$("kp").onchange=()=>{lsSet("sid_kiln",$("kp").value);if(ROWS)draw()};
+$("ksave").onclick=async()=>{
+ const name=$("kname").value.trim()||"My kiln",vals={};
+ PF.forEach(f=>{const v=$("kf_"+f[0]).value;if(v!=="")vals[f[0]]=parseFloat(v)});
+ const q=KEDIT?SB.from("kiln_profiles").update({name,vals,updated_at:new Date().toISOString()}).eq("id",KEDIT):SB.from("kiln_profiles").insert({name,vals});
+ const {error}=await q;if(error){$("aerr").textContent=err(error);return}
+ $("kform").hidden=true;loadProfs()};
+$("klist").onclick=async e=>{
+ const b=e.target.closest("button");if(!b)return;
+ if(b.dataset.e)openForm(PROFS.find(p=>p.id===b.dataset.e));
+ else if(b.dataset.d&&confirm("Delete this kiln?")){const {error}=await SB.from("kiln_profiles").delete().eq("id",b.dataset.d);if(error)$("aerr").textContent=err(error);else loadProfs()}};
+
+/* Saved calculations */
+let LD=null,SAVED=[],SEL=[];
+const fmt=v=>v==null||v===""?"–":(typeof v!=="number"?esc(v):n(v,Math.abs(v)>=100?1:Math.abs(v)>=1?2:4));
+$("ssave").onclick=async()=>{
+ const snap=[];
+ document.querySelectorAll("#xrows .xr").forEach(r=>{const lab=r.querySelector("b").textContent;
+  r.querySelectorAll(".xf").forEach(f=>{const cap=f.querySelector("small").textContent.replace(/ ?·? ?from (kiln|daily)$/,""),i=f.querySelector("input");
+   if(i){if(i.value!=="")snap.push({l:lab,c:cap,r:"in",k:i.dataset.k,v:parseFloat(i.value)})}
+   else{const o=f.querySelector("[data-o]"),x=LD?LD[o.dataset.o]:null;snap.push({l:lab,c:cap,r:"out",k:o.dataset.o,v:x==null?null:x})}})});
+ const p=curProf();
+ const {error}=await SB.from("saved_calcs").insert({sheet:$("xs").value,title:$("stitle").value.trim()||"Saved calculation",kiln_name:p?p.name:null,note:$("snote").value.trim()||null,snap});
+ if(error){$("aerr").textContent=err(error);return}
+ $("ssave").textContent="Saved ✓";$("snote").value="";loadSaved()};
+async function loadSaved(){
+ const {data,error}=await SB.from("saved_calcs").select("*").order("created_at",{ascending:false}).limit(300);
+ if(error){$("aerr").textContent=err(error);return}
+ SAVED=data;SEL=SEL.filter(id=>SAVED.some(s=>s.id===id));
+ const sheets=[...new Set(SAVED.map(s=>s.sheet))],cur=$("hf").value;
+ $("hf").innerHTML='<option value="">All calculators</option>'+sheets.map(s=>`<option value="${esc(s)}">${esc(s.trim())}</option>`).join("");
+ $("hf").value=sheets.includes(cur)?cur:"";drawSaved()}
+function drawSaved(){
+ const f=$("hf").value,q=$("hq").value.trim().toLowerCase();
+ const L=SAVED.filter(s=>(!f||s.sheet===f)&&(!q||((s.title||"")+" "+(s.note||"")).toLowerCase().includes(q)));
+ $("hlist").innerHTML=L.map(s=>`<div class="card"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-c="${esc(s.id)}" ${SEL.includes(s.id)?"checked":""} style="width:auto"><b>${esc(s.title)}</b></label>
+ <div class="mut">${esc(s.sheet.trim())}${s.kiln_name?" · "+esc(s.kiln_name):""} · ${new Date(s.created_at).toLocaleString()}</div>${s.note?`<div class="mut">${esc(s.note)}</div>`:""}
+ <div class="f2"><button class="s" data-view="${esc(s.id)}">View</button><button class="s" data-open="${esc(s.id)}">Open</button><button class="s" data-pdf="${esc(s.id)}">PDF</button><button class="s" data-xls="${esc(s.id)}">Excel</button><button class="s" data-del="${esc(s.id)}">Delete</button></div><div class="det" data-d="${esc(s.id)}" hidden></div></div>`).join("")||'<p class="mut">Nothing saved yet. Calculate something and save it from the Calculators tab.</p>'}
+$("hf").onchange=drawSaved;$("hq").oninput=drawSaved;
+$("hlist").onchange=e=>{const c=e.target.dataset.c;if(!c)return;SEL=e.target.checked?SEL.concat(c).slice(-6):SEL.filter(x=>x!==c);drawSaved()};
+$("hlist").onclick=async e=>{
+ const b=e.target.closest("button");if(!b)return;
+ const d=b.dataset;
+ if(d.view){const s=SAVED.find(x=>x.id===d.view),box=document.querySelector(`.det[data-d="${CSS.escape(d.view)}"]`);
+  box.hidden=!box.hidden;box.innerHTML=s.snap.map(x=>`<div><span>${esc(x.l)}${x.c?" · "+esc(x.c):""}</span><b style="color:var(--${x.r==="in"?"ini":"ac"})">${fmt(x.v)}</b></div>`).join("")}
+ else if(d.open){const s=SAVED.find(x=>x.id===d.open);
+  document.querySelector('.tabs button[data-t="p1"]').click();
+  $("xs").value=s.sheet;await $("xs").onchange();
+  const m={};s.snap.forEach(x=>{if(x.r==="in")m[x.k]=x.v});
+  document.querySelectorAll("#xrows input").forEach(i=>{if(m[i.dataset.k]!=null){i.value=m[i.dataset.k];i.classList.remove("fp")}});
+  $("xc").click()}
+ else if(d.pdf||d.xls){const s=SAVED.find(x=>x.id===(d.pdf||d.xls));exportTable(snapTable(s),s.title,d.pdf?"pdf":"xls")}
+ else if(d.del&&confirm("Delete this saved calculation?")){const {error}=await SB.from("saved_calcs").delete().eq("id",d.del);if(error)$("aerr").textContent=err(error);else loadSaved()}};
+const colName=(s,all)=>{const base=s.kiln_name||s.title,dup=all.filter(x=>(x.kiln_name||x.title)===base).length>1;return base+(dup?" · "+new Date(s.created_at).toLocaleDateString():"")};
+function cmpHTML(cols,rows,only){
+ const body=rows.map(r=>{const v=cols.map(c=>c.m[r.k]),nums=v.filter(x=>typeof x==="number");
+  const diff=nums.length>1&&Math.max(...nums)-Math.min(...nums)>1e-9;
+  if(only&&!diff)return"";
+  const last=cols.length===2?(typeof v[0]==="number"&&typeof v[1]==="number"?v[1]-v[0]:null):(nums.length>1?Math.max(...nums)-Math.min(...nums):null);
+  return `<tr class="${diff?"chg":""}"><td>${esc(r.l)}${r.c?" · "+esc(r.c):""}${r.r==="in"?" (input)":""}</td>${v.map(x=>`<td>${fmt(x)}</td>`).join("")}<td>${last==null?"–":(cols.length===2&&last>0?"+":"")+fmt(last)}</td></tr>`}).join("");
+ return `<div style="overflow-x:auto"><table class="cmp"><tr><th>Item</th>${cols.map(c=>`<th>${esc(c.name)}</th>`).join("")}<th>${cols.length===2?"B − A":"Spread"}</th></tr>${body||'<tr><td colspan="9">No differences.</td></tr>'}</table></div>`}
+$("hcmp").onclick=()=>{
+ const S=SEL.map(id=>SAVED.find(s=>s.id===id)).filter(Boolean);
+ if(S.length<2){$("hout").innerHTML='<p class="mut">Tick 2 to 6 saved calculations of the same calculator, then press Compare.</p>';return}
+ if(S.some(s=>s.sheet!==S[0].sheet)){$("hout").innerHTML='<p class="err">Please pick calculations from the same calculator.</p>';return}
+ const cols=S.map(s=>{const m={};s.snap.forEach(x=>m[x.k]=x.v);return{name:colName(s,S),m}});
+ const rows=S[0].snap.map(x=>({k:x.k,l:x.l,c:x.c,r:x.r}));
+ $("hout").innerHTML=`<div class="card"><h2>Compare</h2><div class="mut">${esc(S[0].sheet.trim())} · ${S.length} calculations. Changed rows are highlighted.</div>${cmpHTML(cols,rows,$("honly").checked)}</div>`};
+$("honly").onchange=()=>{if(SEL.length>1)$("hcmp").onclick()};
+$("hkil").onclick=()=>{
+ const f=$("hf").value;
+ if(!f){$("hout").innerHTML='<p class="mut">First choose one calculator in the Calculator menu above.</p>';return}
+ const seen=new Set(),pick=[];
+ SAVED.filter(x=>x.sheet===f&&x.kiln_name).forEach(x=>{if(!seen.has(x.kiln_name)&&pick.length<6){seen.add(x.kiln_name);pick.push(x.id)}});
+ if(pick.length<2){$("hout").innerHTML='<p class="mut">Save this calculator for at least 2 different kilns first.</p>';return}
+ SEL=pick;drawSaved();$("hcmp").onclick()};
+function draw(){draw0();$("xout").innerHTML="";$("xall").hidden=PROFS.length<2}
+$("xall").onclick=async()=>{
+ $("aerr").textContent="";
+ const cur={};document.querySelectorAll("#xrows input").forEach(i=>{if(i.value!=="")cur[i.dataset.k]=parseFloat(i.value)});
+ const ins=VIS().filter(l=>l.role==="in"),res=[];
+ for(const p of PROFS.slice(0,6)){
+  const vals={};
+  ins.forEach(l=>{const raw=l.pkey?srcVal(p,l.pkey):null;
+   if(raw!=null&&raw!=="")vals[l.key]=+(raw*(l.pscale||1)).toPrecision(10);
+   else if(l.pkey){if(l.def!=null)vals[l.key]=l.def}
+   else if(cur[l.key]!=null)vals[l.key]=cur[l.key];else if(l.def!=null)vals[l.key]=l.def});
+  const {data,error}=await SB.rpc("run_sheet",{p_device:DEV,p_sheet:$("xs").value,p_vals:vals});
+  if(error){$("aerr").textContent=err(error);return}
+  res.push({p,vals,data})}
+ const cols=res.map(r=>({name:r.p.name,m:Object.assign({},r.vals,r.data)}));
+ const rows=VIS().filter(l=>l.role==="out"||cols.some(c=>c.m[l.key]!==cols[0].m[l.key])).map(l=>({k:l.key,l:l.label,c:l.cap,r:l.role}));
+ $("xout").innerHTML=`<div class="card"><h2>All my kilns</h2><div class="mut">${esc($("xs").value.trim())}. Other inputs are as shown below. Rows that differ are highlighted.</div>${cmpHTML(cols,rows,false)}</div>`};
+
+/* Reports: PDF, Excel, Print */
+let ME=null;
+const loadJS=u=>new Promise((ok,no)=>{if(loadJS.c[u])return ok();const e=document.createElement("script");e.src=u;e.onload=()=>{loadJS.c[u]=1;ok()};e.onerror=()=>no(new Error("could not load "+u));document.head.appendChild(e)});loadJS.c={};
+const ft=v=>v==null||v===""?"-":(typeof v==="number"?n(v,Math.abs(v)>=100?1:Math.abs(v)>=1?2:4):String(v));
+function mkTable(head,rows){
+ const t=document.createElement("table"),h=document.createElement("thead"),tr=document.createElement("tr");
+ head.forEach(x=>{const c=document.createElement("th");c.textContent=x;tr.appendChild(c)});h.appendChild(tr);t.appendChild(h);
+ const b=document.createElement("tbody");
+ rows.forEach(r=>{const tr=document.createElement("tr");r.forEach(x=>{const c=document.createElement("td");c.textContent=x;tr.appendChild(c)});b.appendChild(tr)});
+ t.appendChild(b);return t}
+function calcTable(){
+ const rows=[];
+ document.querySelectorAll("#xrows .xr").forEach(r=>{const lab=r.querySelector("b").textContent;
+  r.querySelectorAll(".xf").forEach(f=>{const cap=f.querySelector("small").textContent.replace(/ ?·? ?from (kiln|daily)$/,""),i=f.querySelector("input"),o=f.querySelector("[data-o]");
+   rows.push([lab+(cap?" - "+cap:""),i?i.value:o.textContent,i?"Input":"Result"])})});
+ return mkTable(["Item","Value","Type"],rows)}
+const snapTable=s=>mkTable(["Item","Value","Type"],s.snap.map(x=>[x.l+(x.c?" - "+x.c:""),ft(x.v),x.r==="in"?"Input":"Result"]));
+function printTable(tbl,title,meta){
+ let a=$("printarea");if(!a){a=document.createElement("div");a.id="printarea";document.body.appendChild(a)}
+ a.innerHTML=`<h2>SID Calculation</h2><h3>${esc(title)}</h3><p>${esc(meta)}</p>`;a.appendChild(tbl.cloneNode(true));
+ document.body.classList.add("printing");
+ const done=()=>document.body.classList.remove("printing");
+ window.addEventListener("afterprint",done,{once:true});setTimeout(done,120000);window.print()}
+async function exportTable(tbl,title,kind){
+ $("aerr").textContent="";
+ const who=(ME&&(ME.company||ME.email))||"",p=curProf(),kiln=p?p.name:"",when=new Date().toLocaleString();
+ const meta=[who,kiln?"Kiln: "+kiln:"",when].filter(Boolean).join("  |  ");
+ const fn="SID_"+title.trim().replace(/[^\w]+/g,"_").slice(0,40)+"_"+ymd(new Date());
+ if(kind==="print"){printTable(tbl,title.trim(),meta);return}
+ try{
+  if(kind==="pdf"){
+   await loadJS("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+   await loadJS("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js");
+   const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:tbl.rows[0].cells.length>4?"landscape":"portrait"});
+   const cl=t=>String(t).replace(/[\u2013\u2212]/g,"-").replace(/[^\x20-\xFF]/g,"?");
+   doc.setFontSize(15);doc.text("SID Calculation",14,15);doc.setFontSize(11);doc.text(cl(title.trim()),14,22);
+   doc.setFontSize(9);doc.setTextColor(90);doc.text(cl(meta),14,28);
+   doc.autoTable({html:tbl,startY:33,styles:{fontSize:9,cellPadding:1.8},headStyles:{fillColor:[27,94,138]},didParseCell:d=>{d.cell.text=d.cell.text.map(cl)}});
+   doc.save(fn+".pdf")
+  }else{
+   await loadJS("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
+   const m=[["SID Calculation"],[title.trim()],[who],kiln?["Kiln",kiln]:[""],[when],[]];
+   const ws=XLSX.utils.aoa_to_sheet(m);XLSX.utils.sheet_add_dom(ws,tbl,{origin:"A"+(m.length+1)});
+   ws["!cols"]=[{wch:46},{wch:16},{wch:16},{wch:16},{wch:16},{wch:16},{wch:16}];
+   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Report");XLSX.writeFile(wb,fn+".xlsx")}
+ }catch(e){$("aerr").textContent="Could not create the file ("+(e.message||e)+"). Try Print and choose Save as PDF."}}
+$("rpdf").onclick=()=>exportTable(calcTable(),$("xs").value,"pdf");
+$("rxls").onclick=()=>exportTable(calcTable(),$("xs").value,"xls");
+$("rprt").onclick=()=>exportTable(calcTable(),$("xs").value,"print");
+function tools(id,title){
+ new MutationObserver(()=>{const c=$(id),t=c.querySelector("table.cmp"),card=c.querySelector(".card");
+  if(!t||!card||c.querySelector(".rtools"))return;
+  const d=document.createElement("div");d.className="rtools f2";
+  d.innerHTML='<button class="s" data-r="pdf" style="flex:1">PDF</button><button class="s" data-r="xls" style="flex:1">Excel</button><button class="s" data-r="print" style="flex:1">Print</button>';
+  d.onclick=e=>{const b=e.target.closest("button");if(b)exportTable(t,title(),b.dataset.r)};card.appendChild(d)}).observe($(id),{childList:true})}
+tools("hout",()=>"Comparison "+$("hf").value.trim());tools("xout",()=>"All my kilns "+$("xs").value.trim());
+
+/* Admin edit mode */
+let EDIT=false,EDKEY=null;
+const VIS=()=>ROWS.filter(l=>l.visible!==false);
+const edTile=l=>`<div class="xf" style="${l.visible===false?"opacity:.45":""}"><small title="${esc(l.cell)}">${esc(l.cap||"")}${l.visible===false?" · hidden":""}</small><div class="xo" data-ed="${esc(l.key)}" style="cursor:pointer">${l.role==="in"?"Input"+(l.def!=null?" · "+fmt(l.def):""):"Result"} ✎</div></div>`;
+async function reloadRows(){
+ const sh=$("xs").value;let all=[],from=0;
+ for(;;){
+  const {data,error}=await SB.from("xl_layout").select("key,cell,role,label,cap,rno,cno,def,pkey,pscale,visible").eq("sheet",sh).order("rno").order("cno").range(from,from+999);
+  if(error){$("aerr").textContent=err(error);return}
+  all=all.concat(data);if(data.length<1000)break;from+=1000}
+ ROWS=all;draw()}
+$("xed").onclick=()=>{EDIT=!EDIT;$("xed").textContent=EDIT?"Edit mode ON (tap to finish)":"Edit mode";$("edbox").hidden=true;$("savebox").hidden=true;$("xc").disabled=EDIT;if(ROWS)draw()};
+$("xrows").onclick=e=>{if(!EDIT)return;const t=e.target.closest("[data-ed]");if(t)openEd(t.dataset.ed)};
+function openEd(k){
+ const l=ROWS.find(x=>x.key===k);if(!l)return;EDKEY=k;
+ $("edbox").hidden=false;$("edinfo").textContent=l.cell+" · "+$("xs").value.trim();
+ $("edl").value=l.label||"";$("edc").value=l.cap||"";
+ const isc=l.def!=null;$("eddr").hidden=!isc||l.role!=="in";$("edtr").hidden=!isc;
+ $("edd").value=isc?l.def:"";$("edt").value=l.role;$("edv").value=l.visible===false?"0":"1";$("edw").value="";
+ $("edbox").scrollIntoView({behavior:"smooth",block:"start"})}
+$("edclose").onclick=()=>{$("edbox").hidden=true};
+$("edsave").onclick=async()=>{
+ const l=ROWS.find(x=>x.key===EDKEY);if(!l)return;$("aerr").textContent="";const sh=$("xs").value;
+ const cell={cap:$("edc").value.trim()||null,visible:$("edv").value==="1"};
+ if(l.def!=null){cell.role=$("edt").value;const d=$("edd").value;if(d!==""&&l.role==="in")cell.def=parseFloat(d)}
+ let r=await SB.from("xl_layout").update(cell).eq("key",l.key);
+ if(r.error){$("aerr").textContent=err(r.error);return}
+ const lab=$("edl").value.trim(),line={};
+ if(lab&&lab!==l.label)line.label=lab;
+ if($("edw").value!=="")line.visible=$("edw").value==="1";
+ if(Object.keys(line).length){r=await SB.from("xl_layout").update(line).eq("sheet",sh).eq("rno",l.rno);if(r.error){$("aerr").textContent=err(r.error);return}}
+ $("edbox").hidden=true;await reloadRows()};
+$("lbk").onclick=async()=>{
+ $("aerr").textContent="";let all=[],from=0;
+ for(;;){const {data,error}=await SB.from("xl_layout").select("key,sheet,cell,role,label,cap,rno,cno,def,visible,pkey,pscale").order("key").range(from,from+999);
+  if(error){$("aerr").textContent=err(error);return}all=all.concat(data);if(data.length<1000)break;from+=1000}
+ const cols=["key","sheet","cell","role","label","cap","rno","cno","def","visible","pkey","pscale"],q=v=>v==null?"":'"'+String(v).replace(/"/g,'""')+'"';
+ const csv=cols.join(",")+"\n"+all.map(r=>cols.map(c=>q(r[c])).join(",")).join("\n");
+ const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="xl_layout_backup_"+ymd(new Date())+".csv";document.body.appendChild(a);a.click();a.remove()};
+
+/* Daily log */
+const XLSX_URL="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+const DF=[["iron_feed","Iron feed rate","TPH"],["iron_total","Total iron feed","t/day"],["iron_fet","Iron FeT","%"],["yield","Yield","%"],["iron_moisture","Iron moisture","%"],["mz","MZ","%"],["total_coal","Coal feed rate","TPH"],["coal_fc","Coal FC","%"],["coal_moisture","Coal moisture","%"],["coal_density","Coal density","t/m³"],["non_mag_char","Non-mag char","%"],["dri_prod","DRI production","t/day"],["coal_used","Coal used","t/day"]];
+const DER=[["coal_dri","Coal / DRI","t/t"],["carbon_dri","Carbon / DRI","kg/t"]];
+const COL=["#1b5e8a","#d9822b","#2e8b57","#8a4fb3","#c0392b","#16a085","#7f8c8d"];
+let DLOG=[],UP=null,DDIRTY=false;
+async function loadDLog(){const {data,error}=await SB.from("daily_log").select("*").order("log_date",{ascending:false}).limit(2000);if(!error&&data){DLOG=data;if(ROWS)draw()}}
+$("asof").onchange=()=>{if(ROWS)draw()};
+const dnum=v=>(v===null||v===undefined||v===""||isNaN(v))?null:+v;
+const cuOf=v=>dnum(v.coal_used)??(dnum(v.total_coal)!=null?dnum(v.total_coal)*24:null);
+const irOf=v=>dnum(v.iron_total)??(dnum(v.iron_feed)!=null?dnum(v.iron_feed)*24:null);
+const drOf=v=>{const a=irOf(v),y=dnum(v.yield);return a!=null&&y!=null?a*y/100:dnum(v.dri_prod)};
+const derive=v=>{const cu=cuOf(v),dp=drOf(v),fc=dnum(v.coal_fc),mo=dnum(v.coal_moisture),cd=cu!=null&&dp?cu/dp:null;
+ return{coal_dri:cd,carbon_dri:cd!=null&&fc!=null?(100-(mo||0))*cd*fc/10:null,dri_prod:dp}};
+const dval=(e,k)=>["coal_dri","carbon_dri","dri_prod"].includes(k)?(derive(e.vals)[k]??null):dnum(e.vals[k]);
+const dts=ds=>new Date(ds+"T12:00:00");
+$("dfields").innerHTML=DF.map(f=>`<div class="row"><label for="df_${f[0]}">${f[1]} (${f[2]})</label><input id="df_${f[0]}" type="number" step="any" inputmode="decimal"></div>`).join("");
+$("df_dri_prod").readOnly=true;$("df_dri_prod").title="Auto: Total iron feed x Yield / 100";
+const calcDri=()=>{const a=parseFloat($("df_iron_total").value),y=parseFloat($("df_yield").value);if(!isNaN(a)&&!isNaN(y))$("df_dri_prod").value=+(a*y/100).toFixed(2)};
+["df_iron_total","df_yield"].forEach(i=>$(i).addEventListener("input",calcDri));
+$("gfield").innerHTML=[...DF,...DER].map(f=>`<label><input type="checkbox" value="${f[0]}"${f[0]==="coal_dri"?" checked":""}>${f[1]} (${f[2]})</label>`).join("");
+function loadForm(){
+ const d=$("ddate").value,k=$("dkiln").value,e=DLOG.find(x=>x.log_date===d&&x.kiln===k);
+ DF.forEach(f=>{$("df_"+f[0]).value=e&&e.vals[f[0]]!=null?e.vals[f[0]]:""});calcDri();
+ $("dnote").value=e&&e.note?e.note:"";
+ $("dstatus").textContent=e?"An entry exists for this date and kiln. Saving will replace it.":"New entry."}
+async function loadDaily(){
+ if(!$("ddate").value)$("ddate").value=ymd(new Date());
+ const {data,error}=await SB.from("daily_log").select("*").order("log_date",{ascending:false}).limit(2000);
+ if(error){$("aerr").textContent=err(error);return}
+ DLOG=data;const cur=$("dkiln").value;
+ $("dkiln").innerHTML='<option value="">(no kiln)</option>'+PROFS.map(p=>`<option>${esc(p.name)}</option>`).join("");
+ if([...$("dkiln").options].some(o=>o.value===cur)&&cur)$("dkiln").value=cur;else if(PROFS[0])$("dkiln").value=PROFS[0].name;
+ const kc=$("gkiln").value,ks=[...new Set(DLOG.map(e=>e.kiln))];
+ $("gkiln").innerHTML='<option value="*">All kilns</option>'+ks.map(k=>`<option value="${esc(k)}">${esc(k||"(no kiln)")}</option>`).join("");
+ if(kc==="*"||ks.includes(kc))$("gkiln").value=kc||"*";
+ loadForm();drawGraph();drawList()}
+$("ddate").onchange=loadForm;$("dkiln").onchange=loadForm;
+$("dfill").onclick=()=>{const k=$("dkiln").value,d=$("ddate").value;
+ const prev=DLOG.filter(e=>e.kiln===k&&e.log_date<d).sort((a,b)=>a.log_date<b.log_date?1:-1)[0];
+ if(!prev){$("dstatus").textContent="No earlier entry found for this kiln.";return}
+ DF.forEach(f=>{const v=prev.vals[f[0]];if(v!=null&&$("df_"+f[0]).value==="")$("df_"+f[0]).value=v});calcDri();
+ $("dstatus").textContent="Copied from "+prev.log_date+". Check the numbers and save."};
+$("dsave").onclick=async()=>{
+ const d=$("ddate").value;if(!d){$("aerr").textContent="Please pick a date.";return}
+ const vals={};DF.forEach(f=>{const v=$("df_"+f[0]).value;if(v!=="")vals[f[0]]=parseFloat(v)});if(vals.iron_total!=null&&vals.yield!=null)vals.dri_prod=+(vals.iron_total*vals.yield/100).toFixed(2);
+ if(!Object.keys(vals).length){$("aerr").textContent="Enter at least one value.";return}
+ const uid=(await SB.auth.getSession()).data.session.user.id;
+ const {error}=await SB.from("daily_log").upsert({user_id:uid,log_date:d,kiln:$("dkiln").value,vals,note:$("dnote").value.trim()||null,updated_at:new Date().toISOString()},{onConflict:"user_id,log_date,kiln"});
+ if(error){$("aerr").textContent=err(error);return}
+ $("aerr").textContent="";DDIRTY=true;await loadDaily();$("dstatus").textContent="Saved ✓"};
+function chartSVG(series,pct){
+ const all=series.flatMap(s=>s.pts);
+ let x0=Math.min(...all.map(p=>p[0])),x1=Math.max(...all.map(p=>p[0])),y0=Math.min(...all.map(p=>p[1])),y1=Math.max(...all.map(p=>p[1]));
+ if(x0===x1){x0-=86400000;x1+=86400000}
+ if(y0===y1){y0-=1;y1+=1}else{const pad=(y1-y0)*.1;y0-=pad;y1+=pad}
+ const W=640,H=250,Lm=48,R=12,T=12,B=30,X=t=>Lm+(t-x0)/(x1-x0)*(W-Lm-R),Y=v=>T+(1-(v-y0)/(y1-y0))*(H-T-B),fy=v=>pct?Math.round(v)+"%":n(v,y1-y0<5?2:1);
+ let g="";
+ for(let i=0;i<=4;i++){const v=y0+(y1-y0)*i/4,y=Y(v);g+=`<line x1="${Lm}" x2="${W-R}" y1="${y}" y2="${y}" stroke="var(--ln)"/><text x="${Lm-6}" y="${y+4}" text-anchor="end" font-size="11" fill="var(--mut)">${fy(v)}</text>`}
+ for(let i=0;i<=3;i++){const t=x0+(x1-x0)*i/3,d=new Date(t);g+=`<text x="${X(t)}" y="${H-8}" text-anchor="middle" font-size="11" fill="var(--mut)">${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}</text>`}
+ series.forEach(s=>{const c=COL[s.ci%COL.length];
+  g+=`<polyline fill="none" stroke="${c}" stroke-width="2" points="${s.pts.map(p=>X(p[0])+","+Y(p[1])).join(" ")}"/>`+s.pts.map(p=>`<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="3.5" fill="${c}"><title>${esc(s.name)} ${p[2]}: ${fmt(p[3])}</title></circle>`).join("")});
+ return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Trend chart">${g}</svg><div class="mut" style="display:flex;gap:12px;flex-wrap:wrap">${series.map(s=>`<span><span class="lg" style="background:${COL[s.ci%COL.length]};margin:0 4px 0 0"></span>${esc(s.name)}</span>`).join("")}</div>`}
+function drawGraph(){
+ const keys=[...document.querySelectorAll("#gfield input:checked")].map(i=>i.value),kf=$("gkiln").value,days=+$("grange").value,lim=days?Date.now()-days*86400000:0,mode=$("gmode").value;
+ if(!keys.length){$("gsvg").innerHTML='<p class="mut">Tick at least one value to draw.</p>';return}
+ const lab=k=>{const f=[...DF,...DER].find(x=>x[0]===k);return f?f[1]+" ("+f[2]+")":k};
+ const ent=DLOG.filter(e=>(kf==="*"||e.kiln===kf)&&(!lim||dts(e.log_date).getTime()>=lim));
+ const kilns=[...new Set(ent.map(e=>e.kiln))],multi=kilns.length>1;
+ const sets=keys.map(k=>{const by={};ent.forEach(e=>{const v=dval(e,k);if(v==null)return;(by[e.kiln]=by[e.kiln]||[]).push([dts(e.log_date).getTime(),v,e.log_date,v])});Object.values(by).forEach(a=>a.sort((p,q)=>p[0]-q[0]));return{k,by}});
+ if(sets.every(s=>!Object.keys(s.by).length)){$("gsvg").innerHTML='<p class="mut">No data to draw yet. Add daily entries first.</p>';return}
+ if(mode==="one"){
+  const series=[];let ci=0;
+  sets.forEach(s=>{const all=Object.values(s.by).flat();if(!all.length)return;const lo=Math.min(...all.map(p=>p[1])),hi=Math.max(...all.map(p=>p[1]));
+   Object.keys(s.by).forEach(kn=>series.push({ci:ci++,name:lab(s.k)+(multi?" · "+(kn||"(no kiln)"):""),pts:s.by[kn].map(p=>[p[0],hi===lo?50:(p[1]-lo)/(hi-lo)*100,p[2],p[3]])}))});
+  $("gsvg").innerHTML='<div class="mut">Each value is scaled from 0 to 100% between its own lowest and highest. Tap a dot to see the real number.</div>'+chartSVG(series,true)}
+ else $("gsvg").innerHTML=sets.map(s=>{const ks=Object.keys(s.by),h=`<h3 style="margin:14px 0 4px;font-size:.95rem">${esc(lab(s.k))}</h3>`;
+  return ks.length?h+chartSVG(ks.map(kn=>({ci:kilns.indexOf(kn),name:kn||"(no kiln)",pts:s.by[kn]})),false):h+'<p class="mut">No data for this value.</p>'}).join("")}
+$("gfield").onchange=drawGraph;$("gmode").onchange=drawGraph;$("grange").onchange=drawGraph;$("gkiln").onchange=()=>{drawGraph();drawList()};
+function drawList(){
+ const kf=$("gkiln").value,L=DLOG.filter(e=>kf==="*"||e.kiln===kf).slice(0,60);
+ $("dlist").innerHTML=L.map(e=>{const t=[["iron_feed","Feed TPH"],["iron_total","Iron t/day"],["dri_prod","DRI"],["yield","Yield"],["coal_used","Coal"],["coal_dri","Coal/DRI"],["carbon_dri","Carbon/DRI"]].map(([k,l])=>{const v=dval(e,k);return v==null?"":l+" "+fmt(v)}).filter(Boolean).join(" · ");
+  return `<div class="card"><b>${dts(e.log_date).toLocaleDateString()}</b> · ${esc(e.kiln||"(no kiln)")}<div class="mut">${t||"-"}${e.note?" · "+esc(e.note):""}</div><div class="f2"><button class="s" data-de="${esc(e.id)}">Edit</button><button class="s" data-dd="${esc(e.id)}">Delete</button></div></div>`}).join("")||'<p class="mut">No entries yet.</p>'}
+$("dlist").onclick=async e=>{const b=e.target.closest("button");if(!b)return;
+ if(b.dataset.de){const x=DLOG.find(z=>z.id===b.dataset.de);
+  if(![...$("dkiln").options].some(o=>o.value===x.kiln)){const o=document.createElement("option");o.value=x.kiln;o.textContent=x.kiln||"(no kiln)";$("dkiln").appendChild(o)}
+  $("ddate").value=x.log_date;$("dkiln").value=x.kiln;loadForm();$("ddate").scrollIntoView({behavior:"smooth"})}
+ else if(b.dataset.dd&&confirm("Delete this entry?")){const {error}=await SB.from("daily_log").delete().eq("id",b.dataset.dd);if(error)$("aerr").textContent=err(error);else{DDIRTY=true;loadDaily()}}};
+function logTable(){
+ const kf=$("gkiln").value,L=DLOG.filter(e=>kf==="*"||e.kiln===kf).slice().sort((a,b)=>a.log_date<b.log_date?-1:1);
+ return mkTable(["Date","Kiln",...DF.map(f=>f[1]+" ("+f[2]+")"),...DER.map(f=>f[1]+" ("+f[2]+")"),"Note"],L.map(e=>[e.log_date,e.kiln,...DF.map(f=>ft(dnum(e.vals[f[0]]))),...DER.map(f=>ft(derive(e.vals)[f[0]])),e.note||""]))}
+$("dxls").onclick=()=>exportTable(logTable(),"Daily log","xls");$("dpdf").onclick=()=>exportTable(logTable(),"Daily log","pdf");
+/* Excel upload */
+const nz=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+const ALIAS=(()=>{const m={date:"date",day:"date",kiln:"kiln",kilnname:"kiln"};
+ DF.forEach(f=>{[nz(f[1]),nz(f[1]+f[2]),nz(f[0])].forEach(a=>m[a]=f[0])});
+ Object.assign(m,{feedrate:"iron_feed",ironfeedrate:"iron_feed",fet:"iron_fet",ironfet:"iron_fet",metallisation:"mz",metallization:"mz",totalcoal:"total_coal",toalironfeed:"iron_total",totalironfeed:"iron_total",ironfeedtph:"iron_feed",totalcoalfeedtph:"total_coal",coaldri:"_skip",carbondri:"_skip",coalfeedrate:"total_coal",coalfeed:"total_coal",ironfeed:"iron_feed",fc:"coal_fc",coalfc:"coal_fc",production:"dri_prod",dri:"dri_prod",driproduction:"dri_prod",coalconsumption:"coal_used",coalconsumed:"coal_used",remarks:"note",note:"note"});return m})();
+const ymdU=d=>d.getUTCFullYear()+"-"+String(d.getUTCMonth()+1).padStart(2,"0")+"-"+String(d.getUTCDate()).padStart(2,"0");
+function pdate(v){
+ let ds=null;
+ if(v instanceof Date&&!isNaN(v))ds=ymdU(new Date(v.getTime()+43200000));
+ else if(typeof v==="number"&&v>20000&&v<80000)ds=ymdU(new Date(Math.round((v-25569)*86400000)));
+ else{const s=String(v).trim();let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m)ds=m[1]+"-"+m[2].padStart(2,"0")+"-"+m[3].padStart(2,"0");
+  else{m=s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/);if(m)ds=(m[3].length===2?"20"+m[3]:m[3])+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0")}}
+ if(!ds)return null;const t=dts(ds);return isNaN(t)||ymd(t)!==ds||t.getFullYear()<2000||t.getFullYear()>2100?null:ds}
+$("dfile").onchange=async()=>{
+ const f=$("dfile").files[0];if(!f)return;$("dprev").innerHTML='<p class="mut">Reading the file...</p>';UP=null;
+ try{
+  await loadJS(XLSX_URL);
+  const wb=XLSX.read(await f.arrayBuffer(),{type:"array",cellDates:true});
+  const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:"",raw:true});
+  const good=[],bad=[],ign=new Set();
+  rows.forEach((r,i)=>{const o={vals:{},kiln:"",date:null,note:null};
+   Object.keys(r).forEach(h=>{const a=ALIAS[nz(h)];if(a==="_skip")return;if(!a){if(String(h).trim())ign.add(String(h).trim());return}
+    const v=r[h];
+    if(a==="date")o.date=pdate(v);else if(a==="kiln")o.kiln=String(v).trim();else if(a==="note")o.note=String(v).trim()||null;
+    else if(v!==""&&v!==null){const x=parseFloat(String(v).replace(",","."));if(!isNaN(x))o.vals[a]=x}});
+   if(o.vals.iron_total!=null&&o.vals.yield!=null)o.vals.dri_prod=+(o.vals.iron_total*o.vals.yield/100).toFixed(2);
+   if(!o.date)bad.push("Row "+(i+2)+": date is missing or not understood");
+   else if(!Object.keys(o.vals).length)bad.push("Row "+(i+2)+": no numbers found");
+   else good.push(o)});
+  const mp={};good.forEach(o=>{mp[o.date+"|"+o.kiln]=o});UP=Object.values(mp);
+  $("dprev").innerHTML=`<p>${UP.length} rows are ready to import.${bad.length?" "+bad.length+" skipped.":""}</p>`+(bad.length?`<div class="mut">${bad.slice(0,5).map(esc).join("<br>")}</div>`:"")+(ign.size?`<div class="mut">Columns not used: ${[...ign].slice(0,8).map(esc).join(", ")}</div>`:"")+(UP.length?'<button class="b" id="dimp" style="margin-top:8px">Import these rows</button>':"");
+  if($("dimp"))$("dimp").onclick=importRows
+ }catch(e){$("dprev").innerHTML='<p class="err">Could not read this file ('+esc(e.message||e)+'). Please use the template.</p>'}};
+async function importRows(){
+ if(!UP||!UP.length)return;
+ const uid=(await SB.auth.getSession()).data.session.user.id,now=new Date().toISOString();
+ const recs=UP.map(o=>({user_id:uid,log_date:o.date,kiln:o.kiln,vals:o.vals,note:o.note,updated_at:now}));
+ for(let i=0;i<recs.length;i+=200){const {error}=await SB.from("daily_log").upsert(recs.slice(i,i+200),{onConflict:"user_id,log_date,kiln"});if(error){$("aerr").textContent=err(error);return}}
+ $("dprev").innerHTML=`<p>Imported ${recs.length} rows ✓</p>`;$("dfile").value="";UP=null;DDIRTY=true;loadDaily()}
+$("dtpl").onclick=async()=>{
+ try{await loadJS(XLSX_URL)}catch(e){$("aerr").textContent="Could not load the Excel tool. Check the internet.";return}
+ const head=["Date","Kiln",...DF.map(f=>f[1]+" ("+f[2]+")"),"Coal / DRI","Carbon / DRI","Note"];
+ const L=i=>XLSX.utils.encode_col(i),ix=k=>DF.findIndex(f=>f[0]===k)+2,cD=L(ix("dri_prod")),cI=L(ix("iron_total")),cY=L(ix("yield")),cU=L(ix("coal_used")),cF=L(ix("coal_fc")),cM=L(ix("coal_moisture")),cCD=L(DF.length+2),cCB=L(DF.length+3);
+ const ws=XLSX.utils.aoa_to_sheet([head,[ymd(new Date()),PROFS[0]?PROFS[0].name:"Kiln 1"]]);
+ for(let r=2;r<=400;r++){
+  ws[cD+r]={t:"n",f:`IF(OR(${cI}${r}="",${cY}${r}=""),"",${cI}${r}*${cY}${r}/100)`};
+  ws[cCD+r]={t:"n",f:`IF(OR(${cD}${r}="",${cU}${r}=""),"",${cU}${r}/${cD}${r})`};
+  ws[cCB+r]={t:"n",f:`IF(OR(${cCD}${r}="",${cF}${r}=""),"",(100-N(${cM}${r}))*${cCD}${r}*${cF}${r}/10)`}}
+ ws["!ref"]="A1:"+L(head.length-1)+"400";ws["!cols"]=head.map(()=>({wch:18}));
+ const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Daily log");XLSX.writeFile(wb,"SID_daily_log_template.xlsx")};
+
+/* Dashboard and limits */
+let LIM={};
+const DP=[...DF,...DER];
+async function loadDash(){
+ await loadDaily();
+ const {data}=await SB.from("user_limits").select("limits");
+ LIM=(data&&data[0]&&data[0].limits)||{};if(!$("dto").value)setRange(7);drawDash()}
+function stat(k,v){const l=LIM[k]||{};if(v==null)return null;if(l.hi!=null&&v>l.hi)return "high";if(l.lo!=null&&v<l.lo)return "low";return(l.lo!=null||l.hi!=null)?"ok":"none"}
+const lastD=()=>DLOG.length?DLOG.reduce((m,e)=>e.log_date>m?e.log_date:m,"0000"):ymd(new Date());
+const setRange=n=>{const t=dts(lastD());$("dto").value=ymd(t);$("dfrom").value=n?ymd(new Date(t.getTime()-(n-1)*864e5)):(DLOG.length?DLOG.reduce((m,e)=>e.log_date<m?e.log_date:m,"9999"):ymd(t))};
+$("dr7").onclick=()=>{setRange(7);drawDash()};$("dr30").onclick=()=>{setRange(30);drawDash()};$("dr90").onclick=()=>{setRange(90);drawDash()};$("dr0").onclick=()=>{setRange(0);drawDash()};
+$("dfrom").onchange=$("dto").onchange=()=>drawDash();
+function drawDash(){
+ const f=$("dfrom").value,t=$("dto").value,al=[];
+ const AV=["iron_feed","iron_fet","yield","iron_moisture","mz","total_coal","coal_fc","coal_moisture","non_mag_char"],SM=["iron_total","dri_prod","coal_used"];
+ const lb=k=>DP.find(x=>x[0]===k);
+ const kilns=[...new Set(DLOG.map(e=>e.kiln))];
+ const cards=kilns.map(kn=>{
+  const E=DLOG.filter(e=>e.kiln===kn&&e.log_date>=f&&e.log_date<=t);if(!E.length)return"";
+  const nm=esc(kn||"(no kiln)");
+  const avg=k=>{const a=E.map(e=>dnum(e.vals[k])).filter(x=>x!=null);return a.length?a.reduce((s,x)=>s+x,0)/a.length:null};
+  const sum=k=>{const a=E.map(e=>k==="dri_prod"?drOf(e.vals):k==="coal_used"?cuOf(e.vals):k==="iron_total"?irOf(e.vals):null).filter(x=>x!=null);return a.length?a.reduce((s,x)=>s+x,0):null};
+  let sc=0,sd=0;E.forEach(e=>{const c=cuOf(e.vals),d=drOf(e.vals);if(c!=null&&d){sc+=c;sd+=d}});
+  const cd=sd?sc/sd:null,fc=avg("coal_fc"),mo=avg("coal_moisture"),cb=cd!=null&&fc!=null?(100-(mo||0))*cd*fc/10:null;
+  const row=(k,v,u,chk)=>{if(v==null)return"";const s=chk?stat(k,v):"none",l=LIM[k]||{},c=s==="ok"?"#2e8b57":s==="none"?"var(--mut)":"var(--bad)";
+   if(s==="high"||s==="low")al.push(nm+": "+esc(lb(k)[1])+" "+fmt(v)+" is "+(s==="high"?"above max "+fmt(l.hi):"below min "+fmt(l.lo)));
+   return `<div class="out"><span>${esc(lb(k)[1])}</span><span style="color:${c};font-weight:700">${s==="high"?"▲ ":s==="low"?"▼ ":""}${fmt(v)} <span class="mut">${u}</span></span></div>`};
+  const head=x=>`<div class="mut" style="margin-top:8px"><b>${x}</b></div>`;
+  return `<div class="card"><h2>${nm}</h2><div class="mut">${E.length} day(s) with entries</div>`+
+   head("Totals (sum)")+SM.map(k=>row(k,sum(k),"t",false)).join("")+
+   head("Ratios (total coal ÷ total DRI)")+row("coal_dri",cd,"t/t",true)+row("carbon_dri",cb,"kg/t",true)+
+   head("Averages")+AV.map(k=>row(k,avg(k),lb(k)[2],true)).join("")+`</div>`}).join("");
+ $("dcards").innerHTML=cards||'<p class="mut">No entries in this date range. Change the dates or add entries in the Daily log tab.</p>';
+ $("dalerts").innerHTML=al.length?`<div class="card" style="border-color:var(--bad)"><h2 style="color:var(--bad)">Alerts (${al.length})</h2>${al.map(x=>`<div>⚠ ${x}</div>`).join("")}</div>`:"";
+ $("dlim").innerHTML=DP.map(f=>{const l=LIM[f[0]]||{};return `<div class="row"><label>${esc(f[1])} (${esc(f[2])})</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><input data-lk="${f[0]}" data-w="lo" type="number" step="any" placeholder="min" value="${l.lo!=null?l.lo:""}"><input data-lk="${f[0]}" data-w="hi" type="number" step="any" placeholder="max" value="${l.hi!=null?l.hi:""}"></div></div>`}).join("")}
+$("dlsave").onclick=async()=>{
+ const L={};document.querySelectorAll("#dlim input").forEach(i=>{if(i.value!==""){(L[i.dataset.lk]=L[i.dataset.lk]||{})[i.dataset.w]=parseFloat(i.value)}});
+ const uid=(await SB.auth.getSession()).data.session.user.id;
+ const {error}=await SB.from("user_limits").upsert({user_id:uid,limits:L});
+ if(error){$("aerr").textContent=err(error);return}
+ LIM=L;drawDash();$("dlsave").textContent="Saved ✓"};
+
+/* Admin */
+const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+function addm(s,m){const t=ymd(new Date());const d=new Date((s&&s>t?s:t)+"T12:00:00");d.setMonth(d.getMonth()+m);return ymd(d)}
+async function loadAdmin(){
+ const [a,b]=await Promise.all([SB.from("profiles").select("*").order("created_at"),SB.from("usage_logs").select("*").order("created_at",{ascending:false}).limit(300)]);
+ if(a.error||b.error){$("aerr").textContent=err(a.error||b.error);return}
+ const P=a.data,L=b.data,em={},st={};
+ P.forEach(p=>em[p.id]=p.email);
+ L.forEach(l=>{const s=st[l.user_id]=st[l.user_id]||{c:0,last:l.created_at};if(l.event==="calc")s.c++});
+ $("ulist").innerHTML=P.map(p=>{const s=st[p.id]||{c:0,last:null};return `<div class="card u" data-id="${p.id}" data-active="${p.is_active}">
+ <b>${esc(p.email)}</b> ${p.is_admin?'<span class="tag">admin</span>':""} <span class="${p.is_active?"mut":"off"}" data-st>${p.is_active?"Active":"Blocked"}</span>
+ <div class="f"><input data-co placeholder="Company" value="${esc(p.company)}"></div>
+ <div class="f"><input data-vt type="date" value="${p.valid_till||""}" aria-label="Valid till"><button class="s" data-a="m1">+1 month</button><button class="s" data-a="y1">+1 year</button></div>
+ <div class="f"><button class="s" data-a="tog">Block / Unblock</button><button class="s" data-a="dev">Reset device</button><span class="mut">${p.device_id?"Device linked":"No device"}</span></div>
+ <div class="mut" style="margin-top:6px">${s.c} calculations (recent)${s.last?" · last seen "+new Date(s.last).toLocaleString():""}</div>
+ <div class="f"><button class="b" data-a="save">Save</button></div></div>`}).join("");
+ $("logs").innerHTML=L.slice(0,40).map(l=>`<div class="out"><span>${esc(em[l.user_id]||"?")}<br><span class="mut">${esc(l.event)}${l.detail?" · "+esc(l.detail.trim()):""}</span></span><span class="mut">${new Date(l.created_at).toLocaleString()}</span></div>`).join("")||'<span class="mut">No activity yet.</span>'}
+$("ulist").onclick=async e=>{
+ const bt=e.target.closest("button[data-a]");if(!bt)return;
+ const c=bt.closest(".u"),id=c.dataset.id,a=bt.dataset.a,vt=c.querySelector("[data-vt]");
+ if(a==="m1")vt.value=addm(vt.value,1);
+ else if(a==="y1")vt.value=addm(vt.value,12);
+ else if(a==="tog"){const on=c.dataset.active!=="true";c.dataset.active=on;const s=c.querySelector("[data-st]");s.textContent=on?"Active":"Blocked";s.className=on?"mut":"off"}
+ else if(a==="dev"){const {error}=await SB.from("profiles").update({device_id:null}).eq("id",id);$("aerr").textContent=error?err(error):"";loadAdmin()}
+ else if(a==="save"){const {error}=await SB.from("profiles").update({company:c.querySelector("[data-co]").value.trim()||null,valid_till:vt.value||null,is_active:c.dataset.active==="true"}).eq("id",id);$("aerr").textContent=error?err(error):"";if(!error)bt.textContent="Saved"}};
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(function(){});
+start();
+</script>
+</body>
+</html>
