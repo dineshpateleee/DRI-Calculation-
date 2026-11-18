@@ -155,7 +155,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <div class="card"><h2>Date range</h2>
 <div class="row"><label for="dfrom">From</label><input id="dfrom" type="date"></div>
 <div class="row"><label for="dto">To</label><input id="dto" type="date"></div>
-<div class="f2"><button class="s" id="dr7">7 days</button><button class="s" id="dr30">30 days</button><button class="s" id="dr90">90 days</button></div></div>
+<div class="f2"><button class="s" id="dr7">7 days</button><button class="s" id="dr30">30 days</button><button class="s" id="dr90">90 days</button><button class="s" id="dr0">All</button></div></div>
 <div id="dalerts"></div>
 <div id="dcards"></div>
 <details class="card"><summary><b>Set limits</b> (min and max for each value)</summary>
@@ -170,7 +170,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 </div>
 </section>
 <div class="mut" id="vtag" style="font-size:.7rem;text-align:center;margin-top:16px"></div>
-<p class="mut" style="font-size:.7rem;text-align:center;margin-top:16px">Version 7.2 (daily log, dashboard range)</p>
+<p class="mut" style="font-size:.7rem;text-align:center;margin-top:16px">Version 7.3 (daily log, dashboard range)</p>
 </main>
 
 <script src="config.js"></script>
@@ -474,12 +474,12 @@ let DLOG=[],UP=null,DDIRTY=false;
 async function loadDLog(){const {data,error}=await SB.from("daily_log").select("*").order("log_date",{ascending:false}).limit(2000);if(!error&&data){DLOG=data;if(ROWS)draw()}}
 $("asof").onchange=()=>{if(ROWS)draw()};
 const dnum=v=>(v===null||v===undefined||v===""||isNaN(v))?null:+v;
-const derive=v=>{
- const cu=dnum(v.coal_used),dp=dnum(v.dri_prod)??(dnum(v.iron_total)!=null&&dnum(v.yield)!=null?dnum(v.iron_total)*dnum(v.yield)/100:null),cf=dnum(v.total_coal),fe=dnum(v.iron_feed),y=dnum(v.yield),fc=dnum(v.coal_fc),mo=dnum(v.coal_moisture);
- let cd=null;
- if(cu!=null&&dp)cd=cu/dp;else if(cf!=null&&fe&&y)cd=cf/(fe*y/100);
- return{coal_dri:cd,carbon_dri:cd!=null&&fc!=null?(100-(mo||0))*cd*fc/10:null}};
-const dval=(e,k)=>(k in e.vals)?dnum(e.vals[k]):(derive(e.vals)[k]??null);
+const cuOf=v=>dnum(v.coal_used)??(dnum(v.total_coal)!=null?dnum(v.total_coal)*24:null);
+const irOf=v=>dnum(v.iron_total)??(dnum(v.iron_feed)!=null?dnum(v.iron_feed)*24:null);
+const drOf=v=>{const a=irOf(v),y=dnum(v.yield);return a!=null&&y!=null?a*y/100:dnum(v.dri_prod)};
+const derive=v=>{const cu=cuOf(v),dp=drOf(v),fc=dnum(v.coal_fc),mo=dnum(v.coal_moisture),cd=cu!=null&&dp?cu/dp:null;
+ return{coal_dri:cd,carbon_dri:cd!=null&&fc!=null?(100-(mo||0))*cd*fc/10:null,dri_prod:dp}};
+const dval=(e,k)=>["coal_dri","carbon_dri","dri_prod"].includes(k)?(derive(e.vals)[k]??null):dnum(e.vals[k]);
 const dts=ds=>new Date(ds+"T12:00:00");
 $("dfields").innerHTML=DF.map(f=>`<div class="row"><label for="df_${f[0]}">${f[1]} (${f[2]})</label><input id="df_${f[0]}" type="number" step="any" inputmode="decimal"></div>`).join("");
 $("df_dri_prod").readOnly=true;$("df_dri_prod").title="Auto: Total iron feed x Yield / 100";
@@ -546,7 +546,7 @@ function drawGraph(){
 $("gfield").onchange=drawGraph;$("gmode").onchange=drawGraph;$("grange").onchange=drawGraph;$("gkiln").onchange=()=>{drawGraph();drawList()};
 function drawList(){
  const kf=$("gkiln").value,L=DLOG.filter(e=>kf==="*"||e.kiln===kf).slice(0,60);
- $("dlist").innerHTML=L.map(e=>{const t=[["iron_feed","Feed"],["yield","Yield"],["coal_dri","Coal/DRI"]].map(([k,l])=>{const v=dval(e,k);return v==null?"":l+" "+fmt(v)}).filter(Boolean).join(" · ");
+ $("dlist").innerHTML=L.map(e=>{const t=[["iron_feed","Feed TPH"],["iron_total","Iron t/day"],["dri_prod","DRI"],["yield","Yield"],["coal_used","Coal"],["coal_dri","Coal/DRI"],["carbon_dri","Carbon/DRI"]].map(([k,l])=>{const v=dval(e,k);return v==null?"":l+" "+fmt(v)}).filter(Boolean).join(" · ");
   return `<div class="card"><b>${dts(e.log_date).toLocaleDateString()}</b> · ${esc(e.kiln||"(no kiln)")}<div class="mut">${t||"-"}${e.note?" · "+esc(e.note):""}</div><div class="f2"><button class="s" data-de="${esc(e.id)}">Edit</button><button class="s" data-dd="${esc(e.id)}">Delete</button></div></div>`}).join("")||'<p class="mut">No entries yet.</p>'}
 $("dlist").onclick=async e=>{const b=e.target.closest("button");if(!b)return;
  if(b.dataset.de){const x=DLOG.find(z=>z.id===b.dataset.de);
@@ -617,16 +617,14 @@ async function loadDash(){
  const {data}=await SB.from("user_limits").select("limits");
  LIM=(data&&data[0]&&data[0].limits)||{};if(!$("dto").value)setRange(7);drawDash()}
 function stat(k,v){const l=LIM[k]||{};if(v==null)return null;if(l.hi!=null&&v>l.hi)return "high";if(l.lo!=null&&v<l.lo)return "low";return(l.lo!=null||l.hi!=null)?"ok":"none"}
-const setRange=n=>{const t=new Date(),f=new Date(Date.now()-(n-1)*864e5);$("dto").value=ymd(t);$("dfrom").value=ymd(f)};
-$("dr7").onclick=()=>{setRange(7);drawDash()};$("dr30").onclick=()=>{setRange(30);drawDash()};$("dr90").onclick=()=>{setRange(90);drawDash()};
+const lastD=()=>DLOG.length?DLOG.reduce((m,e)=>e.log_date>m?e.log_date:m,"0000"):ymd(new Date());
+const setRange=n=>{const t=dts(lastD());$("dto").value=ymd(t);$("dfrom").value=n?ymd(new Date(t.getTime()-(n-1)*864e5)):(DLOG.length?DLOG.reduce((m,e)=>e.log_date<m?e.log_date:m,"9999"):ymd(t))};
+$("dr7").onclick=()=>{setRange(7);drawDash()};$("dr30").onclick=()=>{setRange(30);drawDash()};$("dr90").onclick=()=>{setRange(90);drawDash()};$("dr0").onclick=()=>{setRange(0);drawDash()};
 $("dfrom").onchange=$("dto").onchange=()=>drawDash();
 function drawDash(){
  const f=$("dfrom").value,t=$("dto").value,al=[];
  const AV=["iron_feed","iron_fet","yield","iron_moisture","mz","total_coal","coal_fc","coal_moisture","non_mag_char"],SM=["iron_total","dri_prod","coal_used"];
  const lb=k=>DP.find(x=>x[0]===k);
- const cuOf=v=>dnum(v.coal_used)??(dnum(v.total_coal)!=null?dnum(v.total_coal)*24:null);
- const irOf=v=>dnum(v.iron_total)??(dnum(v.iron_feed)!=null?dnum(v.iron_feed)*24:null);
- const drOf=v=>dnum(v.dri_prod)??(irOf(v)!=null&&dnum(v.yield)!=null?irOf(v)*dnum(v.yield)/100:null);
  const kilns=[...new Set(DLOG.map(e=>e.kiln))];
  const cards=kilns.map(kn=>{
   const E=DLOG.filter(e=>e.kiln===kn&&e.log_date>=f&&e.log_date<=t);if(!E.length)return"";
